@@ -1,0 +1,5 @@
+# ignore yaml files
+*.yaml
+
+#ignore data files
+/disk/data/share/s1690903/pandemic_anxiety/data/
