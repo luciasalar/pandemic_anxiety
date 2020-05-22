@@ -26,9 +26,14 @@ import os
 # type hints
 from typing import Dict, Tuple, Sequence
 import typing
-
+from ruamel import yaml
 
 # -*- encoding: utf-8 -*-
+
+def load_experiment(path_to_experiment):
+    """load experiment"""
+    data = yaml.safe_load(open(path_to_experiment))
+    return data
 
 
 # Topic model 
@@ -60,7 +65,8 @@ class ProcessText:
             sent = v['text']
             # remove line breaks
             sent = str(sent).replace('\n', '')
-            sent = str(sent).replace('â€™', '')
+            sent = str(sent).replace(' â€™', 'i') 
+            sent = str(sent).replace('\u200d', '')
             # lower case and remove punctuation
             sent = str(sent).lower().translate(str.maketrans('', '', string.punctuation))
             cleaned[k]['text'] = sent
@@ -191,7 +197,7 @@ class LDATopic:
         return id_l
 
 
-def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname:str):
+def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname:str, subreddit):
         """Select the best lda model with extracted text 
         text: entities dictionary
         domTname:file name for the output
@@ -199,18 +205,18 @@ def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname
 
         # convert data to dictionary format
 
-        file_exists = os.path.isfile(path + 'lda_result_{}.csv'.format(domTname))
-        f = open(path + 'lda_result_test.csv', 'a', encoding='utf-8-sig')
+        file_exists = os.path.isfile(path + 'lda_result_{}_{}.csv'.format(domTname, subreddit))
+        f = open(path + 'lda_result_{}_{}.csv'.format(domTname, subreddit), 'a', encoding='utf-8-sig')
         writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         if not file_exists:
             writer_top.writerow(['a'] + ['b'] + ['coherence'] + ['time'] + ['topics'] + ['num_topics'] )
 
         # optimized alpha and beta
-        # alpha = [0.1, 0.3, 0.5, 0.7, 0.9]
-        # beta = [0.1, 0.3, 0.5, 0.7, 0.9]
+        alpha = [0.1, 0.3, 0.5, 0.7, 0.9]
+        beta = [0.1, 0.3, 0.5, 0.7, 0.9]
 
-        alpha = [0.3]
-        beta = [0.3]
+        # alpha = [0.3]
+        # beta = [0.3]
 
         mydict = lambda: defaultdict(mydict)
         cohere_dict = mydict()
@@ -250,7 +256,7 @@ def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname
         df_dominant_topic = df_topic_sents_keywords.reset_index()
 
         sent_topics_df = pd.concat([df_dominant_topic, scores_best], axis=1)
-        sent_topics_df.to_csv(path + 'dominance_{}.csv'.format(domTname))
+        sent_topics_df.to_csv(path + 'dominance_{}_{}_{}.csv'.format(domTname, num_topic, subreddit), encoding='utf-8-sig')
 
         return sent_topics_df
 
@@ -267,8 +273,20 @@ def loop_lda(inputfile):
 
 #loop_lda('posts/test.csv')
 
+def get_dominant_topic(topic_df):
+    """ """
 
-def get_topic_season(subreddit, year: int) -> pd.DataFrame:
+    dt = topic_df['Dominant_Topic'].value_counts().to_frame()
+    dt['num'] = dt.index
+    # get the most dominant topic
+    dt_num = int(dt['num'].head(1))
+    print(dt_num)
+    topic_kw = topic_df['Topic_Keywords'][topic_df['Dominant_Topic'] == dt_num][0]
+    return dt_num, topic_kw
+
+
+
+def get_topic_season(subreddit, year: int, num_topic: int) -> pd.DataFrame:
     """get topics according to season timeline 
     result saved in results/lda_results/
     """
@@ -277,17 +295,60 @@ def get_topic_season(subreddit, year: int) -> pd.DataFrame:
 
     # here we can set the seasons
     spring = pt.split_timeline(cleaned_text, '3/1/{}'.format(year), '5/31/{}'.format(year))
-    entities = pt.extract_entities(spring)
-    sent_topics_df = selected_best_LDA(pt.path_result, entities, 10, 'spring_{}'.format(year))
+    summer = pt.split_timeline(cleaned_text, '6/1/{}'.format(year), '8/31/{}'.format(year))
+    fall = pt.split_timeline(cleaned_text, '9/1/{}'.format(year), '11/30/{}'.format(year))
+    winter = pt.split_timeline(cleaned_text, '12/1/{}'.format(year), '2/29/{}'.format(year))
+    
+    # run lda for each season 
+    if len(spring) > 1:
+        entities = pt.extract_entities(spring)
+        sent_topics_spring = selected_best_LDA(pt.path_result, entities, num_topic, 'spring_{}'.format(year), subreddit)
+        dt_num_spring, topic_kw_spring = get_dominant_topic(sent_topics_spring)
 
-get_topic_season('HealthAnxiety', 2020)
+    if len(summer) > 1:
+        entities = pt.extract_entities(summer)
+        sent_topics_summer = selected_best_LDA(pt.path_result, entities, num_topic, 'summer_{}'.format(year), subreddit)
+        dt_num_summer, topic_kw_summer = get_dominant_topic(sent_topics_summer)
+    else:
+        dt_num_summer = None
+        topic_kw_summer = None
 
-# again, we can totally loop through a list of subreddit names
-# evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
-# evn = load_experiment(evn_path + 'experiment.yaml')
-# subreddits = evn['subreddits']['subs']
-#     for sub in subreddits:
-#         get_topic_season(sub, 2020)
+    if len(fall) > 1:
+        entities = pt.extract_entities(fall)
+        sent_topics_fall = selected_best_LDA(pt.path_result, entities, num_topic, 'fall_{}'.format(year), subreddit)
+        dt_num_fall, topic_kw_fall = get_dominant_topic(sent_topics_fall)
+    else:
+        dt_num_fall = None
+        topic_kw_fall = None
+
+    if len(winter) > 1:
+        entities = pt.extract_entities(winter)
+        sent_topics_winter = selected_best_LDA(pt.path_result, entities, num_topic, 'winter_{}'.format(year),subreddit)
+        dt_num_winter, topic_kw_winter = get_dominant_topic(sent_topics_winter)
+    else:
+        dt_num_winter = None
+        topic_kw_winter = None
+    
+    # save most dominant topics for the four season results so that we can put it on the big table
+    
+    f = open(pt.path_result + 'domance_output_{}_{}_{}.csv'.format(subreddit, year, num_topic), 'w', encoding='utf-8-sig')
+    writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+    writer_top.writerow(['topic_number_spring'] + ['keywords_spring'] + ['topic_number_summer'] + ['keywords_summer'] + ['topic_number_fall'] + ['keywords_fall'] + ['topic_number_winter'] + ['keywords_winter'])
+    result_row = [[dt_num_spring, topic_kw_spring, dt_num_summer, topic_kw_summer, dt_num_fall, topic_kw_fall, dt_num_winter, topic_kw_winter]]
+    writer_top.writerows(result_row)
+    f.close()
+
+    return sent_topics_spring
+
+
+#sent_topics_spring = get_topic_season('HealthAnxiety', 2020, 10) #year, num_topic
+
+#again, we can totally loop through a list of subreddit names
+evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
+evn = load_experiment(evn_path + 'experiment.yaml')
+subreddits = evn['subreddits']['subs']
+for sub in subreddits:
+    sent_topics_spring = get_topic_season(sub, 2020, 10) #year, num_topic
 
 
 

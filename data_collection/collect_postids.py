@@ -91,7 +91,7 @@ def get_posts(subreddit, year, day, month, iteration, end_year, end_month, end_d
 
 
 # now we loop through all the subs
-subreddits = evn['subreddits']['subs']
+subreddits = evn['subreddits']['subs_all']
 for sub in subreddits:
     get_posts(sub, 2020, 21, 5, 20, 2020, 1, 1)
 
