@@ -13,17 +13,23 @@ import nltk
 import re
 import collections
 from nltk.tokenize import word_tokenize
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+#from sklearn.feature_extraction.text import TfidfVectorizer
+#from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import classification_report
 import numpy as np
-from collections import defaultdict
-import datetime
+import datetime 
+from datetime import datetime 
 import csv
 #from tfidf_basic_search import *
 import gc
 import os
+# type hints
+from typing import Dict, Tuple, Sequence
+import typing
+
+
 # -*- encoding: utf-8 -*-
+
 
 # Topic model 
 class ProcessText:
@@ -44,7 +50,7 @@ class ProcessText:
 
         return data_dict
 
-    def simple_preprocess(self):
+    def simple_preprocess(self) -> typing.Dict[str, str]: 
         """Simple text process: lower case, remove punc. """
 
         data_dict = self.__data_dict()
@@ -62,9 +68,9 @@ class ProcessText:
 
         return cleaned
 
-    def extract_entities(self, cleaned_text):
-        """get noun trunks for the lda model,
-        change noun and verb part to decide what
+    def extract_entities(self, cleaned_text: typing.Dict[str, str]) -> typing.Dict[str, str]:
+        """get noun, verbs and adj for the lda model,
+        change the parts of speech to decide what
         you want to use as input for LDA"""
         ps = PorterStemmer()
       
@@ -82,10 +88,28 @@ class ProcessText:
       
         return all_extracted
 
-    
+
+    def split_timeline(self, simple_prepro_text:typing.Dict[str, str], start:str, end:str) -> typing.Dict[str, str]: 
+        """Here we segment the dataset according to time. 
+        start date = (m/d/y)
+        """
+        mydict = lambda: defaultdict(mydict)
+        target_time = mydict()
+
+        for k, v in simple_prepro_text.items():
+            time = datetime.strptime(v['time'], '%m/%d/%Y/%H:%M:%S').date()
+            start_day = datetime.strptime(start, '%m/%d/%Y').date()
+            end_day = datetime.strptime(end, '%m/%d/%Y').date()
+
+            if (time > start_day and time < end_day):
+                target_time[k]['text'] = v['text']
+                target_time[k]['time'] = v['time']
+
+        return target_time
+
 
 class LDATopic:
-    def __init__(self, processed_text, topic_num, alpha, eta):
+    def __init__(self, processed_text: typing.Dict[str, str], topic_num: int, alpha: int, eta:int):
         """Define varibles."""
         self.path = '/disk/data/share/s1690903/pandemic_anxiety/data/'
         self.path_result = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/'
@@ -94,7 +118,7 @@ class LDATopic:
         self.alpha = alpha
         self.eta = eta
 
-    def get_lda_score_eval(self, dictionary, bow_corpus):
+    def get_lda_score_eval(self, dictionary: typing.Dict[str, str], bow_corpus) -> list:
         """LDA model and coherence score."""
         lda_model = gensim.models.ldamodel.LdaModel(bow_corpus, num_topics=self.topic_num, id2word=dictionary, passes=10,  update_every=1, random_state = 300, alpha=self.alpha, eta=self.eta)
         #pprint(lda_model.print_topics())
@@ -106,7 +130,7 @@ class LDATopic:
 
         return lda_model, coherence
 
-    def get_score_dict(self, bow_corpus, lda_model_object):
+    def get_score_dict(self, bow_corpus, lda_model_object) -> pd.DataFrame:
         """
         get lda score for each document
         """
@@ -155,16 +179,10 @@ class LDATopic:
                     break
         
         sent_topics_df.columns = ['Dominant_Topic', 'Perc_Contribution', 'Topic_Keywords']
-    
-
-        #Add original text to the end of the output
-        #contents = pd.Series(data['text'])     
-        #contents = contents.reset_index()
-        #sent_topics_df = sent_topics_df.reset_index()
         
         return sent_topics_df
 
-    def get_ids_from_selected(self, text):
+    def get_ids_from_selected(self, text: typing.Dict[str, str]):
         """Get unique id from text """
         id_l = []
         for k, v in text.items():
@@ -173,22 +191,26 @@ class LDATopic:
         return id_l
 
 
-def selected_best_LDA(path, text, num_topic, domTname):
-        """Select the best lda model with extracted text """
+def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname:str):
+        """Select the best lda model with extracted text 
+        text: entities dictionary
+        domTname:file name for the output
+        """
+
         # convert data to dictionary format
 
-        file_exists = os.path.isfile(path + 'lda_result_test.csv')
-        f = open(path + 'lda_result_test.csv', 'a', encoding='utf-8')
+        file_exists = os.path.isfile(path + 'lda_result_{}.csv'.format(domTname))
+        f = open(path + 'lda_result_test.csv', 'a', encoding='utf-8-sig')
         writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         if not file_exists:
             writer_top.writerow(['a'] + ['b'] + ['coherence'] + ['time'] + ['topics'] + ['num_topics'] )
 
         # optimized alpha and beta
-        alpha = [0.1, 0.3, 0.5, 0.7, 0.9]
-        beta = [0.1, 0.3, 0.5, 0.7, 0.9]
+        # alpha = [0.1, 0.3, 0.5, 0.7, 0.9]
+        # beta = [0.1, 0.3, 0.5, 0.7, 0.9]
 
-        # alpha = [0.3]
-        # beta = [0.3]
+        alpha = [0.3]
+        beta = [0.3]
 
         mydict = lambda: defaultdict(mydict)
         cohere_dict = mydict()
@@ -212,7 +234,7 @@ def selected_best_LDA(path, text, num_topic, domTname):
         #pprint(model.print_topics())
 
         #f = open(path + 'result/lda_result.csv', 'a')
-        result_row = [[a, b, coherence, str(datetime.datetime.now()), model.print_topics(), num_topic]]
+        result_row = [[a, b, coherence, str(datetime.now()), model.print_topics(), num_topic]]
         writer_top.writerows(result_row)
 
         f.close()
@@ -224,13 +246,10 @@ def selected_best_LDA(path, text, num_topic, domTname):
         scores_best['post_id'] = id_l
 
         # get topic dominance
-        #t = LDATopicModel()
         df_topic_sents_keywords = lda.format_topics_sentences(model, corpus)
         df_dominant_topic = df_topic_sents_keywords.reset_index()
-        #print(df_dominant_topic.shape)
 
         sent_topics_df = pd.concat([df_dominant_topic, scores_best], axis=1)
-        #sent_topics_df = sent_topics_df[['Dominant_Topic', 'Perc_Contribution', 'Topic_Keywords']]
         sent_topics_df.to_csv(path + 'dominance_{}.csv'.format(domTname))
 
         return sent_topics_df
@@ -246,19 +265,29 @@ def loop_lda(inputfile):
     sent_topics_df = selected_best_LDA(pt.path_result, entities, 2, 'test')
 
 
-loop_lda('posts/test.csv')
-
-# pt = ProcessText('posts/test.csv')
-# cleaned_text = pt.simple_preprocess()
+#loop_lda('posts/test.csv')
 
 
-pt = ProcessText('posts/test.csv')
-cleaned_text = pt.simple_preprocess()
-entities = pt.extract_entities(cleaned_text)
+def get_topic_season(subreddit, year: int) -> pd.DataFrame:
+    """get topics according to season timeline 
+    result saved in results/lda_results/
+    """
+    pt = ProcessText('posts/{}_postids_posts.csv'.format(subreddit))
+    cleaned_text = pt.simple_preprocess()
 
+    # here we can set the seasons
+    spring = pt.split_timeline(cleaned_text, '3/1/{}'.format(year), '5/31/{}'.format(year))
+    entities = pt.extract_entities(spring)
+    sent_topics_df = selected_best_LDA(pt.path_result, entities, 10, 'spring_{}'.format(year))
 
+get_topic_season('HealthAnxiety', 2020)
 
-
+# again, we can totally loop through a list of subreddit names
+# evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
+# evn = load_experiment(evn_path + 'experiment.yaml')
+# subreddits = evn['subreddits']['subs']
+#     for sub in subreddits:
+#         get_topic_season(sub, 2020)
 
 
 
