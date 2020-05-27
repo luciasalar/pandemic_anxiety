@@ -44,12 +44,23 @@ class ProcessText:
         self.data = pd.read_csv(self.path_data + filename)
         self.path_result = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/'
 
-    def __data_dict(self):
-        """Convert df to dictionary. """
+    def __processed_data(self):
+        """Remove duplicates and deleted posts and nan"""
+        data = self.data.drop_duplicates(subset='post_id', keep='first', inplace=False)
+        data = data[~data['text'].isin(['[removed]'])]
+        data = data[~data['text'].isin(['[deleted]'])]
+        data = data.dropna(subset=['text'])
+        return data
+
+
+    def data_dict(self):
+        """Convert df to dictionary. """ 
+
+        data = self.__processed_data()
         mydict = lambda: defaultdict(mydict)
         data_dict = mydict()
 
-        for pid, text, time in zip(self.data['post_id'], self.data['text'], self.data['time']):
+        for pid, text, time in zip(data['post_id'], data['text'], data['time']):
             data_dict[pid]['text'] = text
             data_dict[pid]['time'] = time
 
@@ -58,7 +69,7 @@ class ProcessText:
     def simple_preprocess(self) -> typing.Dict[str, str]: 
         """Simple text process: lower case, remove punc. """
 
-        data_dict = self.__data_dict()
+        data_dict = self.data_dict()
         mydict = lambda: defaultdict(mydict)
         cleaned = mydict()
         for k, v in data_dict.items():
@@ -89,7 +100,8 @@ class ProcessText:
             nouns = ' '.join(ps.stem(str(v)) for v in doc if v.pos_ is 'NOUN').split()
             verbs = ' '.join(ps.stem(str(v)) for v in doc if v.pos_ is 'VERB').split()
             adj = ' '.join(str(v) for v in doc if v.pos_ is 'ADJ').split()
-            all_w = nouns + verbs + adj
+            #noun_tr = ' '.join(str(v) for v in doc.noun_chunks).split()
+            all_w = nouns + adj  + verbs
             all_extracted[k] = all_w
       
         return all_extracted
@@ -216,7 +228,7 @@ def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname
         beta = [0.1, 0.3, 0.5, 0.7, 0.9]
 
         # alpha = [0.3]
-        # beta = [0.3]
+        # beta = [0.9]
 
         mydict = lambda: defaultdict(mydict)
         cohere_dict = mydict()
@@ -261,27 +273,26 @@ def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname
         return sent_topics_df
 
 
-def loop_lda(inputfile):
-    """ 
-    inputfile: files for running LDA
-    """
-    pt = ProcessText(inputfile)
-    cleaned_text = pt.simple_preprocess()
-    entities = pt.extract_entities(cleaned_text)
-    sent_topics_df = selected_best_LDA(pt.path_result, entities, 2, 'test')
+# def loop_lda(inputfile):
+#     """
+#     inputfile: files for running LDA
+#     """
+#     pt = ProcessText(inputfile)
+#     cleaned_text = pt.simple_preprocess()
+#     entities = pt.extract_entities(cleaned_text)
+#     sent_topics_df = selected_best_LDA(pt.path_result, entities, 2, 'test')
 
-
-#loop_lda('posts/test.csv')
 
 def get_dominant_topic(topic_df):
-    """ """
+    """Get the most dominant topic."""
 
     dt = topic_df['Dominant_Topic'].value_counts().to_frame()
     dt['num'] = dt.index
     # get the most dominant topic
     dt_num = int(dt['num'].head(1))
     print(dt_num)
-    topic_kw = topic_df['Topic_Keywords'][topic_df['Dominant_Topic'] == dt_num][0]
+    topic_kw = topic_df['Topic_Keywords'][topic_df['Dominant_Topic'] == dt_num]
+    topic_kw = topic_kw.iloc[0]
     return dt_num, topic_kw
 
 
@@ -297,7 +308,7 @@ def get_topic_season(subreddit, year: int, num_topic: int) -> pd.DataFrame:
     spring = pt.split_timeline(cleaned_text, '3/1/{}'.format(year), '5/31/{}'.format(year))
     summer = pt.split_timeline(cleaned_text, '6/1/{}'.format(year), '8/31/{}'.format(year))
     fall = pt.split_timeline(cleaned_text, '9/1/{}'.format(year), '11/30/{}'.format(year))
-    winter = pt.split_timeline(cleaned_text, '12/1/{}'.format(year), '2/29/{}'.format(year))
+    winter = pt.split_timeline(cleaned_text, '12/1/{}'.format(year), '2/28/{}'.format(year))
     
     # run lda for each season 
     if len(spring) > 1:
@@ -338,17 +349,18 @@ def get_topic_season(subreddit, year: int, num_topic: int) -> pd.DataFrame:
     writer_top.writerows(result_row)
     f.close()
 
-    return sent_topics_spring
+    return topic_kw_spring
 
+if __name__ == "__main__":
 
-#sent_topics_spring = get_topic_season('HealthAnxiety', 2020, 10) #year, num_topic
+    #sent_topics_spring = get_topic_season('Anxiety', 2019, 10) #year, num_topic
 
 #again, we can totally loop through a list of subreddit names
-evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
-evn = load_experiment(evn_path + 'experiment.yaml')
-subreddits = evn['subreddits']['subs']
-for sub in subreddits:
-    sent_topics_spring = get_topic_season(sub, 2020, 10) #year, num_topic
+    evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
+    evn = load_experiment(evn_path + 'experiment.yaml')
+    subreddits = evn['subreddits']['subs']
+    for sub in subreddits:
+        sent_topics_spring = get_topic_season(sub, 2019, 10) #year, num_topic
 
 
 
