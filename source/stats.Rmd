@@ -1,0 +1,124 @@
+---
+title: "stats"
+author: "lushi"
+date: "25/05/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(lubridate)
+library(xts)
+library(zoo)
+library(ggfortify)
+library(varhandle)
+library(timeSeries)
+require(dplyr)
+```
+
+## plot daily activity 
+Here we want to combine the data and plot it across time
+
+```{r plot}
+path = '/Users/lucia/phd_work/pandemic_anxiety/activity'
+setwd(path)
+
+# import files with a specific name
+get_time_series <- function(subreddit){
+  files <- list.files(path, pattern=sprintf(".*%s.*csv$", subreddit), full.names=TRUE)
+  print(files)
+  list_of_frames <- lapply(files, read.csv)
+  frames <- bind_rows(list_of_frames, .id = "column_label")
+  frames <- frames[,c('count', 'time')]
+  
+  frames$time <-as.Date(frames$time)
+  frames %>%
+  mutate(month = format(time, "%m"), year = format(time, "%Y")) %>%
+  group_by(month, year) %>%
+  summarise(count = mean(count)) -> frames_daily
+  
+  #construct time series, get start and end data from the data 
+  frames_daily$time <- with(frames_daily, sprintf("%s-%s-1", frames_daily$year, frames_daily$month))
+  frames_daily$time <- ymd(frames_daily$time)
+  df_ts <- xts(x = frames_daily$count, order.by = frames_daily$time)
+  # 
+  df_ts2 <- xts(x = frames_daily, order.by = frames_daily$time)
+  start_year = as.numeric(strsplit(df_ts2$time[1],'-')[[1]][1])
+  start_month = as.numeric(strsplit(df_ts2$time[1],'-')[[1]][2])
+  end_year = as.numeric(strsplit(tail(df_ts2$time, 1),'-')[[1]][1])
+  end_month = as.numeric(strsplit(tail(df_ts2$time, 1),'-')[[1]][2])
+
+  timeseries_m <- ts(df_ts,  st = c(start_year, start_month), end = c(end_year, end_month), fr = 12)
+  return (timeseries_m)
+
+}
+
+# subreddits <- c('_Anxiety_', 'HealthAnxiety','SocialAnxiety', 'AnxietyDepression', 'OCD', 'adhd_anxiety', 'Anxietyhelp', 'socialskills', 'ForeverAlone')
+# 
+# for (sub in subreddits){
+#    print(sub)
+#    timeseries_m <- get_time_series(sub)
+#    
+#    #plot.new() 
+#    
+#    png(filename=sprintf("/plot/sub.png", sub))
+#    autoplot(timeseries_m, ts.color = 'red')
+#    #title(sprintf("Plot: %s", sub))
+#    dev.off()
+#    # 
+#    # png(filename=sprintf("plot/decompose_%s.png", sub))
+#    # autoplot(stats::decompose(timeseries_m))
+#    # title(sprintf("Plot_decompose: %s", sub))
+#    # dev.off()
+#    
+#  }
+
+timeseries_m  <- get_time_series('adhd_anxiety') 
+
+
+   
+#plot.new() 
+png(filename="/plot/sub.png")
+plot.ts(timeseries_m, ts.color = 'red')
+# #title(sprintf("Plot: %s", sub))
+dev.off()
+# while (!is.null(dev.list())) dev.off()
+
+#frames_daily$time <- with(frames_daily, sprintf("%s-%s-1", frames_daily$year, frames_daily$month))
+
+```
+
+## Including Plots
+
+
+
+```{r pressure, echo=FALSE}
+
+#timeseries_m <- ts(timeseries_m,  st = c(2017, 3), end = c(2020, 5), fr = 12)
+
+# frames_daily$time <-as.Date(frames_daily$time)
+# frames_daily %>%
+#   mutate(month = format(time, "%m"), year = format(time, "%Y")) %>%
+#   group_by(month, year) %>%
+#   summarise(total = sum(count)) -> frames
+
+#timeseries_m <- get_time_series(sub)
+
+data(Canada, package = 'vars')
+autoplot(AirPassengers)
+autoplot(UKgas, ts.geom = 'bar')
+autoplot(Canada)
+autoplot(Canada, facets = FALSE)
+
+library(zoo)
+
+autoplot(xts::as.xts(AirPassengers))
+autoplot(timeSeries::as.timeSeries(AirPassengers))
+its <- tseries::irts(cumsum(rexp(10, rate = 0.1)), matrix(rnorm(20), ncol=2))
+autoplot(its)
+
+autoplot(stats::stl(UKgas, s.window = 'periodic'))
+autoplot(stats::decompose(UKgas))
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
