@@ -11,3 +11,8 @@
 
 * step 3: extract entities
 * step 4: LDA topic modeling. The pipeline optimize paramters according to coherence score
+
+### Time series
+
+* step 1: stats_activity.py process data, convert timestamp, truncate data according to years
+* step 2: run time series analysis with stats.Rmd
