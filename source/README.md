@@ -16,3 +16,10 @@
 
 * step 1: stats_activity.py process data, convert timestamp, truncate data according to years
 * step 2: run time series analysis with stats.Rmd
+
+
+### Count keywords
+* to understand the number of documents that mention covid, we count whether each document contain covid, coronavirus, corona, virus and compute the percentage   Count_keywords.py
+
+### Count topic percentage
+* we compute the percentage of certain topic in a dataset topic_percent.py

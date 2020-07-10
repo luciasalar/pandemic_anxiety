@@ -63,13 +63,14 @@ get_time_series <- function(subreddit){
 #,
 subreddits <- c('_Anxiety_', 'HealthAnxiety', 'SocialAnxiety', 'socialskills', 'AnxietyDepression', 'OCD', 'adhd_anxiety', 'Anxietyhelp',  'ForeverAlone')
 
+subreddits <- c('COVID19_support')
 # monthly plot
 for (sub in subreddits){
     print(sub)
     timeseries_m <- get_time_series(sub)
 
-    png(filename=sprintf("plot/plot_decompose_%s.png", sub))
-    print(autoplot(stats::decompose(timeseries_m, type="mult")) + labs(y = 'post_count', x = 'time', title = sprintf("plot_decompose_%s", sub)))
+    png(filename=sprintf("plot/plot_average_p_day_%s.png", sub))
+    print(autoplot(timeseries_m) + labs(y = 'post_count', x = 'time', title = sprintf("plot_average_p_day_%s", sub)))
     dev.off()
     
      #png(filename=sprintf("plot/plot_monthly_ts_%s.png", sub))
@@ -79,7 +80,7 @@ for (sub in subreddits){
 
  }
 
-#timeseries_m  <- get_time_series('adhd_anxiety') 
+#timeseries_m  <- get_time_series('COVID19_support') 
 
 ```
 # here we have the decompose plots
@@ -93,7 +94,7 @@ for (sub in subreddits){
     print(sub)
     timeseries_m <- get_time_series(sub)
     
-    png(filename=sprintf("plot/plot_monthly_ts_%s.png", sub))
+    png(filename=sprintf("plot/plot_decompose_ts_%s.png", sub))
     print(autoplot(stats::decompose(timeseries_m, type="mult")) + labs(y = 'post_count', x = 'time', title = sprintf("plot_decompose_%s", sub)))
     dev.off()
 
@@ -148,7 +149,7 @@ for (sub in subreddits){
     ts.stl <- stl(timeseries_m,"periodic")  # decompose the TS
     ts.sa <- seasadj(ts.stl)  # de-seasonalize
 
-    png(filename=sprintf("plot/plot_decompose_%s.png", sub))
+    png(filename=sprintf("plot/plot_seasonal_%s.png", sub))
     print(seasonplot(ts.sa, 12, col=rainbow(12), year.labels=TRUE, main= sprintf("Seasonal_plot_%s", sub)))
     dev.off()
 

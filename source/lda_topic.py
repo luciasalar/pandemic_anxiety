@@ -27,6 +27,7 @@ import os
 from typing import Dict, Tuple, Sequence
 import typing
 from ruamel import yaml
+import contractions
 
 # -*- encoding: utf-8 -*-
 
@@ -74,12 +75,17 @@ class ProcessText:
         cleaned = mydict()
         for k, v in data_dict.items():
             sent = v['text']
+            # url
+            sent = re.sub(r'http\S+', '', sent)
+            #remove contractions
+            sent = contractions.fix(sent)
             # remove line breaks
-            sent = str(sent).replace('\n', '')
+            sent = str(sent).replace('\n', ' ')
             sent = str(sent).replace(' â€™', 'i') 
-            sent = str(sent).replace('\u200d', '')
+            sent = str(sent).replace('\u200d', ' ')
             # lower case and remove punctuation
-            sent = str(sent).lower().translate(str.maketrans('', '', string.punctuation))
+            #sent = str(sent).lower().translate(str.maketrans('', ' ', string.punctuation))
+            sent = str(sent).lower().translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation)))
             cleaned[k]['text'] = sent
             cleaned[k]['time'] = v['time']
 
@@ -273,15 +279,6 @@ def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname
         return sent_topics_df
 
 
-# def loop_lda(inputfile):
-#     """
-#     inputfile: files for running LDA
-#     """
-#     pt = ProcessText(inputfile)
-#     cleaned_text = pt.simple_preprocess()
-#     entities = pt.extract_entities(cleaned_text)
-#     sent_topics_df = selected_best_LDA(pt.path_result, entities, 2, 'test')
-
 
 def get_dominant_topic(topic_df):
     """Get the most dominant topic."""
@@ -316,52 +313,126 @@ def get_topic_season(subreddit, year: int, num_topic: int) -> pd.DataFrame:
         sent_topics_spring = selected_best_LDA(pt.path_result, entities, num_topic, 'spring_{}'.format(year), subreddit)
         dt_num_spring, topic_kw_spring = get_dominant_topic(sent_topics_spring)
 
-    # if len(summer) > 1:
-    #     entities = pt.extract_entities(summer)
-    #     sent_topics_summer = selected_best_LDA(pt.path_result, entities, num_topic, 'summer_{}'.format(year), subreddit)
-    #     dt_num_summer, topic_kw_summer = get_dominant_topic(sent_topics_summer)
-    # else:
-    #     dt_num_summer = None
-    #     topic_kw_summer = None
+    if len(summer) > 1:
+        entities = pt.extract_entities(summer)
+        sent_topics_summer = selected_best_LDA(pt.path_result, entities, num_topic, 'summer_{}'.format(year), subreddit)
+        dt_num_summer, topic_kw_summer = get_dominant_topic(sent_topics_summer)
+    else:
+        dt_num_summer = None
+        topic_kw_summer = None
 
-    # if len(fall) > 1:
-    #     entities = pt.extract_entities(fall)
-    #     sent_topics_fall = selected_best_LDA(pt.path_result, entities, num_topic, 'fall_{}'.format(year), subreddit)
-    #     dt_num_fall, topic_kw_fall = get_dominant_topic(sent_topics_fall)
-    # else:
-    #     dt_num_fall = None
-    #     topic_kw_fall = None
+    if len(fall) > 1:
+        entities = pt.extract_entities(fall)
+        sent_topics_fall = selected_best_LDA(pt.path_result, entities, num_topic, 'fall_{}'.format(year), subreddit)
+        dt_num_fall, topic_kw_fall = get_dominant_topic(sent_topics_fall)
+    else:
+        dt_num_fall = None
+        topic_kw_fall = None
 
-    # if len(winter) > 1:
-    #     entities = pt.extract_entities(winter)
-    #     sent_topics_winter = selected_best_LDA(pt.path_result, entities, num_topic, 'winter_{}'.format(year),subreddit)
-    #     dt_num_winter, topic_kw_winter = get_dominant_topic(sent_topics_winter)
-    # else:
-    #     dt_num_winter = None
-    #     topic_kw_winter = None
+    if len(winter) > 1:
+        entities = pt.extract_entities(winter)
+        sent_topics_winter = selected_best_LDA(pt.path_result, entities, num_topic, 'winter_{}'.format(year),subreddit)
+        dt_num_winter, topic_kw_winter = get_dominant_topic(sent_topics_winter)
+    else:
+        dt_num_winter = None
+        topic_kw_winter = None
     
+    #save most dominant topics for the four season results so that we can put it on the big table
+    
+    f = open(pt.path_result + 'domance_output_{}_{}_{}.csv'.format(subreddit, year, num_topic), 'w', encoding='utf-8-sig')
+    writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+    writer_top.writerow(['topic_number_spring'] + ['keywords_spring'] + ['topic_number_summer'] + ['keywords_summer'] + ['topic_number_fall'] + ['keywords_fall'] + ['topic_number_winter'] + ['keywords_winter'])
+    result_row = [[dt_num_spring, topic_kw_spring, dt_num_summer, topic_kw_summer, dt_num_fall, topic_kw_fall, dt_num_winter, topic_kw_winter]]
+    writer_top.writerows(result_row)
+    f.close()
+
+def get_topic_covid_timeline(subreddit, year: int, num_topic: int) -> pd.DataFrame:
+    """get topics according to season timeline 
+    result saved in results/lda_results/
+    """
+    pt = ProcessText('posts/{}_postids_posts.csv'.format(subreddit))
+    cleaned_text = pt.simple_preprocess()
+
+    # here we can set the seasons
+    precovid = pt.split_timeline(cleaned_text, '1/1/{}'.format(year), '12/31/{}'.format(year))
+    precovid2 = pt.split_timeline(cleaned_text, '1/1/{}'.format(year-1), '12/31/{}'.format(year-1))
+    covid = pt.split_timeline(cleaned_text, '2/1/2020', '5/31/2020')
+    precovid.update(precovid2)
+ 
+   #run lda for each period
+    if len(precovid) > 1:
+        entities = pt.extract_entities(precovid)
+        sent_topics_precovid = selected_best_LDA(pt.path_result, entities, num_topic, 'precovid_{}_{}'.format(year, year-1), subreddit)
+        dt_num_precovid, topic_kw_precovid = get_dominant_topic(sent_topics_precovid)
+    else:
+        dt_num_precovid = None
+        topic_kw_precovid = None
+
+    if len(covid) > 1:
+        entities = pt.extract_entities(covid)
+        sent_topics_covid = selected_best_LDA(pt.path_result, entities, num_topic, 'covid', subreddit)
+        dt_num_covid, topic_kw_covid = get_dominant_topic(sent_topics_covid)
+    else:
+        dt_num_covid = None
+        topic_kw_covid = None
+
+    #save most dominant topics for the four season results so that we can put it on the big table
+    
+    f = open(pt.path_result + 'domance_output_{}_{}_{}_{}.csv'.format(subreddit, year, year-1, num_topic), 'w', encoding='utf-8-sig')
+    writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+    writer_top.writerow(['topic_number_precovid'] + ['keywords_precovid'] + ['topic_number_covid'] + ['keywords_covid'])
+    result_row = [[dt_num_precovid, topic_kw_precovid, dt_num_covid, topic_kw_covid]]
+    writer_top.writerows(result_row)
+    f.close()
+    
+
+def get_topic_month_timeline(subreddit, year: int, num_topic: int) -> pd.DataFrame:
+    """get topics according to season timeline 
+    result saved in results/lda_results/
+    """
+    pt = ProcessText('posts/{}_postids_posts.csv'.format(subreddit))
+    cleaned_text = pt.simple_preprocess()
+
+    # here we can set the seasons
+    covidFeb = pt.split_timeline(cleaned_text, '2/1/2020', '3/31/2020')
+    covidApr = pt.split_timeline(cleaned_text, '4/1/2020', '4/30/2020')
+    covidMay = pt.split_timeline(cleaned_text, '5/1/2020', '5/31/2020')
+   
+ 
+   #run lda for each period
+    entities1 = pt.extract_entities(covidFeb)
+    sent_topics_covidFeb = selected_best_LDA(pt.path_result, entities1, num_topic, 'covid_Feb_15', subreddit)
+    dt_num_covidFeb, topic_kw_covidFeb = get_dominant_topic(sent_topics_covidFeb)
+
+    entities2 = pt.extract_entities(covidApr)
+    sent_topics_covidApr = selected_best_LDA(pt.path_result, entities2, num_topic, 'covid_Apr_15', subreddit)
+    dt_num_covidApr, topic_kw_covidApr = get_dominant_topic(sent_topics_covidApr)
+
+    entities3 = pt.extract_entities(covidMay)
+    sent_topics_covidMay = selected_best_LDA(pt.path_result, entities3, num_topic, 'covid_May_15', subreddit)
+    dt_num_covidMay, topic_kw_covidMay = get_dominant_topic(sent_topics_covidMay)
+   
+
     # #save most dominant topics for the four season results so that we can put it on the big table
     
-    # f = open(pt.path_result + 'domance_output_{}_{}_{}.csv'.format(subreddit, year, num_topic), 'w', encoding='utf-8-sig')
-    # writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-    # writer_top.writerow(['topic_number_spring'] + ['keywords_spring'] + ['topic_number_summer'] + ['keywords_summer'] + ['topic_number_fall'] + ['keywords_fall'] + ['topic_number_winter'] + ['keywords_winter'])
-    # result_row = [[dt_num_spring, topic_kw_spring, dt_num_summer, topic_kw_summer, dt_num_fall, topic_kw_fall, dt_num_winter, topic_kw_winter]]
-    # writer_top.writerows(result_row)
-    # f.close()
+    f = open(pt.path_result + 'domance_output_covid_support.csv'.format(subreddit, num_topic), 'w', encoding='utf-8-sig')
+    writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+    writer_top.writerow(['topic_number_covidFeb'] + ['keywords_covidFeb'] + ['topic_number_covidApr'] + ['keywords_covidApr'] + ['topic_number_covidMay'] + ['keywords_covidMay'])
+    result_row = [[dt_num_covidFeb, topic_kw_covidFeb, dt_num_covidApr, topic_kw_covidApr, dt_num_covidMay, topic_kw_covidMay]]
+    writer_top.writerows(result_row)
+    f.close()
 
-    
+  
 
 if __name__ == "__main__":
 
-    get_topic_season('socialskills', 2019, 10) #year, num_topic
-
+    #get_topic_season('Anxiety', 2020, 10) #year, num_topiclda_
 #again, we can totally loop through a list of subreddit names
-    # evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
-    # evn = load_experiment(evn_path + 'experiment.yaml')
-    # subreddits = evn['subreddits']['subs']
-    # for sub in subreddits:
-    #     sent_topics_spring = get_topic_season(sub, 2019, 10) #year, num_topic
-
+    evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
+    evn = load_experiment(evn_path + 'experiment.yaml')
+    subreddits = evn['subreddits']['subs']
+    for sub in subreddits:
+        covidApr, covidMay = get_topic_month_timeline(sub, 2020, 15) #year, num_topic
 
 
 

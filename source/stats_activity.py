@@ -121,15 +121,14 @@ path_result = '/disk/data/share/s1690903/pandemic_anxiety/results/stats/'
 #w = stats_loop(path_result, 'Anxiety', 2019)
 
 #now we loop through all the subs
-subreddits = evn['subreddits']['subs_all']
-for sub in subreddits:
-    print(sub)
-    w = stats_loop(path_result, sub, 2017)
+# subreddits = evn['subreddits']['subs_all']
+# for sub in subreddits:
+#     print(sub)
+#     w = stats_loop(path_result, sub, 2017)
 
 
 
-#We'll use R to plot things
-
+w = stats_loop(path_result, 'COVID19_support', 2020)
 
 
 
