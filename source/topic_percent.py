@@ -120,33 +120,103 @@ class TopicPercent:
 
         return prevalence
      
+class getTopicPosts:
+    """Get 100 example post for each topic """
+    def __init__(self, top_n, filename):
 
-        
-        
+        #self.data_path = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/dominance_topic_doc_level/new_timeline/dominance_covid_15_Anxiety.csv'
+        self.path_posts = '/disk/data/share/s1690903/pandemic_anxiety/data/posts/'
+        self.path_result = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_topic_doc_example/'
+        self.data = pd.read_csv(filename)
+        self.top_n = 100
 
-#tp = TopicPercent()
+    #append all the files
+    def merge_all_docs(self):
+        
+        appended_data = []
+        #allfiles = [f for f in listdir(tp.path_input) if isfile(join(tp.path_input, f))]
+        allfiles = glob.glob(os.path.join(self.path_posts, '*'))
+        for filename in allfiles:
+            #print(filename)
+            file = pd.read_csv(filename)
+            file = file.drop_duplicates(subset='post_id', keep="last")
+            appended_data.append(file)
+
+        appended_data = pd.concat(appended_data)
+        return appended_data
+
+    def get_ids(self, topic):
+        """get id for top x documents"""
+
+        # sort documents
+        # find docs contain this topic
+        larger_than_zero = self.data[self.data[topic] > 0]
+
+        if len(larger_than_zero) > self.top_n:
+            sorted_df = larger_than_zero.sort_values(by=topic, ascending=False)
+            top_n_df = sorted_df.head(self.top_n)
+        else:
+            sorted_df = larger_than_zero.sort_values(by=topic, ascending=False)
+            top_n_df = sorted_df
+
+        result = top_n_df[['post_id', 'index']]
+
+        return result
+
+    def loop_topics(self, all_d, filename_topic):
+        """Get top_n documents for all the topics"""
+
+        f = open(self.path_result + 'topic_doc_{}.csv'.format(filename_topic), 'w', encoding='utf-8-sig')
+        writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+        writer_top.writerow(['topic_num'] + ['text'])
+
+        topic_list = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14']
+        for topic in topic_list:
+            ids = self.get_ids(topic)
+            result = pd.merge(ids, all_d, on='post_id', how='left')
+            for text in result.text:
+                result_row = [[topic, text]]
+                writer_top.writerows(result_row)
+        f.close()
+
+
+
+#match topic from files
+path_topic_result = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/dominance_topic_doc_level/new_timeline/'
+
+def loop_all_doc():
+    """Loop all the topic docs """
+    allfiles = glob.glob(os.path.join(path_topic_result, '*'))
+    for file in allfiles:
+        print(file)
+        getp = getTopicPosts(100, file)
+        all_d = getp.merge_all_docs()
+        getp.loop_topics(all_d, file.split('/')[10].split('.')[0])
+
+
+loop_all_doc()
+
+#d = getp.get_ids()
+#docs = pd.merge(d, all_d, on='post_id', how='left')
+
+
+
+
+
 
 #
 #tp = TopicPercent('dominance_fall_2019_10_Anxiety.csv')
-
-path_input = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/dominance_topic_doc_level/'
-#allfiles = [f for f in listdir(tp.path_input) if isfile(join(tp.path_input, f))]
-allfiles = glob.glob(os.path.join(path_input, '*'))
-for file in allfiles:
-    print(file)
-    tp = TopicPercent(file)
-    dominance = tp.dominant_topic_percent()
-    prevalence = tp.get_topic_prevalence()
-
-
+if __name__ == "__main__":
+    path_input = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/dominance_topic_doc_level/'
+    #allfiles = [f for f in listdir(tp.path_input) if isfile(join(tp.path_input, f))]
+    allfiles = glob.glob(os.path.join(path_input, '*'))
+    for file in allfiles:
+        print(file)
+        tp = TopicPercent(file)
+        dominance = tp.dominant_topic_percent()
+        prevalence = tp.get_topic_prevalence()
 
 
-#topic0 = len(tp.lda_results.loc[tp.lda_results['Dominant_Topic'] == 0]) / len(tp.lda_results)
-# d = {}
-# for i in range(5,15):
-#     print(i)
-#     d["topic" + str(i)] = len(tp.lda_results.loc[tp.lda_results.iloc[:, i] > 0]) / len(self.lda_results)
-    
 
 
 

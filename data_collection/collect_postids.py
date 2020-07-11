@@ -54,7 +54,7 @@ class CollectPostids:
             writer_top.writerows([[result_l[i].id]])
         f.close()
 
-def get_posts(subreddit, year, day, month, iteration, end_year, end_month, end_day):
+def get_posts(subreddit, year, day, month, iteration, end_year, end_day, end_month):
     evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
     evn = load_experiment(evn_path + 'experiment.yaml')
 
@@ -91,16 +91,19 @@ def get_posts(subreddit, year, day, month, iteration, end_year, end_month, end_d
 
 
 # now we loop through all the subs
-# subreddits = evn['subreddits']['subs']
+# subreddits = evn['subreddits']['subs_all']
 # for sub in subreddits:
-#     get_posts(sub, 2020, 21, 5, 20, 2019, 1, 1)
+#     get_posts(sub, 2020, 21, 5, 20, 2020, 6, 1)
 
 
 # Axiety reach 2020, 2, 28
-get_posts('Anxietyhelp', 2019, 29, 11, 20, 2019, 1, 1)
+get_posts('COVID19_support', 2020, 1, 7, 100, 2020, 20, 5)
 
 
+#Social skill starts from Dec 2018
+# OCD 13/12/2017
 
+#health anxiety 19/4/2018
 
 
 
