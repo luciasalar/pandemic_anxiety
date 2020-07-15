@@ -50,6 +50,9 @@ class ProcessText:
         data = self.data.drop_duplicates(subset='post_id', keep='first', inplace=False)
         data = data[~data['text'].isin(['[removed]'])]
         data = data[~data['text'].isin(['[deleted]'])]
+        data = data[~data['text'].str.lower().isin(['deleted'])]
+        data = data[~data['text'].str.lower().isin(['removed'])]
+        data['text'].replace('', np.nan, inplace=True)
         data = data.dropna(subset=['text'])
         return data
 
@@ -77,6 +80,7 @@ class ProcessText:
             sent = v['text']
             # url
             sent = re.sub(r'http\S+', '', sent)
+            sent = re.sub(r'^https?:\/\/.*[\r\n]*', '', sent, flags=re.MULTILINE)
             #remove contractions
             sent = contractions.fix(sent)
             # remove line breaks
@@ -86,8 +90,9 @@ class ProcessText:
             # lower case and remove punctuation
             #sent = str(sent).lower().translate(str.maketrans('', ' ', string.punctuation))
             sent = str(sent).lower().translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation)))
-            cleaned[k]['text'] = sent
-            cleaned[k]['time'] = v['time']
+            if len(sent.split()) > 2:
+                cleaned[k]['text'] = sent
+                cleaned[k]['time'] = v['time']
 
         return cleaned
 
@@ -107,7 +112,7 @@ class ProcessText:
             verbs = ' '.join(ps.stem(str(v)) for v in doc if v.pos_ is 'VERB').split()
             adj = ' '.join(str(v) for v in doc if v.pos_ is 'ADJ').split()
             #noun_tr = ' '.join(str(v) for v in doc.noun_chunks).split()
-            all_w = nouns + adj  + verbs
+            all_w = nouns + adj + verbs
             all_extracted[k] = all_w
       
         return all_extracted
@@ -432,12 +437,24 @@ if __name__ == "__main__":
     evn = load_experiment(evn_path + 'experiment.yaml')
     subreddits = evn['subreddits']['subs']
     for sub in subreddits:
-        covidApr, covidMay = get_topic_month_timeline(sub, 2020, 15) #year, num_topic
+        #covidApr, covidMay = get_topic_month_timeline(sub, 2020, 15) #year, num_topic
+        get_topic_covid_timeline(sub, 2020, 15)
 
 
+# data = pd.read_csv('/disk/data/share/s1690903/pandemic_anxiety/data/posts/OCD_postids_posts.csv')
+# data = data.drop_duplicates(subset='post_id', keep='first', inplace=False)
+# data = data[~data['text'].isin(['[removed]'])]
+# data = data[~data['text'].isin(['[deleted]'])]
+# data = data[~data['text'].str.lower().isin(['deleted'])]
+# data = data[~data['text'].str.lower().isin(['removed'])]
+# data['text'].replace('', np.nan, inplace=True)
+# data = data.dropna(subset=['text'])
 
+# pt = ProcessText('posts/OCD_postids_posts.csv')
+# cleaned_text = pt.simple_preprocess()
+# data = pd.DataFrame.from_dict(cleaned_text, orient='index')
 
-
+# data.to_csv('/disk/data/share/s1690903/pandemic_anxiety/data/posts/test.csv')
 
 
 

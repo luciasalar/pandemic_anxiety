@@ -1,0 +1,37 @@
+---
+title: "Plot_topic_prevalence"
+author: "lushi"
+date: "15/07/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(ggplot2)
+```
+
+## R Markdown
+
+Here we plot the topic prevalence according to the covid timeline
+
+```{r prevalence}
+file <- read.csv('/Users/lucia/phd_work/pandemic_anxiety/topic_prevalence/anxiety_feeling.csv')
+
+
+#file$prevalence <- as.numeric(as.character(file$prevalence))
+ggplot(file, aes(x=subreddit, y = prevalence, fill = timeline)) + geom_bar(stat="identity", position='dodge')+
+ggtitle("prevalence of anxiety feeling") +
+theme(axis.text.x = element_text(angle = 30, hjust=1), axis.title.x=element_blank())
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

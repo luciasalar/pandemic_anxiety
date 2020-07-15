@@ -1,0 +1,199 @@
+---
+title: "stats"
+author: "lushi"
+date: "25/05/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(lubridate)
+library(xts)
+library(zoo)
+library(ggfortify)
+library(varhandle)
+library(timeSeries)
+require(dplyr)
+library(tseries)
+library(forecast)
+
+```
+
+## plot daily activity 
+Here we plot a time series of the monthly activity (monthly activity = post/day across the month)
+
+```{r plot}
+path = '/Users/lucia/phd_work/pandemic_anxiety/activity'
+setwd(path)
+
+# import files with a specific name
+get_time_series <- function(subreddit){
+  files <- list.files(path, pattern=sprintf(".*%s.*csv$", subreddit), full.names=TRUE)
+  print(files)
+  list_of_frames <- lapply(files, read.csv)
+  frames <- bind_rows(list_of_frames, .id = "column_label")
+  frames <- frames[,c('count', 'time')]
+  
+  #group by month 
+  frames$time <-as.Date(frames$time)
+  frames %>%
+  mutate(month = format(time, "%m"), year = format(time, "%Y")) %>%
+  group_by(month, year) %>%
+  summarise(count = mean(count)) -> frames_daily
+  
+  #construct time series with monthly data, get start and end data from the data 
+  frames_daily$time <- with(frames_daily, sprintf("%s-%s-1", frames_daily$year, frames_daily$month))
+  frames_daily$time <- ymd(frames_daily$time)
+  df_ts <- xts(x = frames_daily$count, order.by = frames_daily$time)
+  
+
+  df_ts2 <- xts(x = frames_daily, order.by = frames_daily$time)
+  start_year = as.numeric(strsplit(df_ts2$time[1],'-')[[1]][1])
+  start_month = as.numeric(strsplit(df_ts2$time[1],'-')[[1]][2])
+  end_year = as.numeric(strsplit(tail(df_ts2$time, 1),'-')[[1]][1])
+  end_month = as.numeric(strsplit(tail(df_ts2$time, 1),'-')[[1]][2])
+
+  timeseries_m <- ts(df_ts,  st = c(start_year, start_month), end = c(end_year, end_month), fr = 12)
+  return (timeseries_m)
+
+}
+
+
+
+#,
+subreddits <- c('_Anxiety_', 'HealthAnxiety', 'SocialAnxiety', 'socialskills', 'AnxietyDepression', 'OCD', 'adhd_anxiety', 'Anxietyhelp',  'ForeverAlone')
+
+subreddits <- c('COVID19_support')
+# monthly plot
+for (sub in subreddits){
+    print(sub)
+    timeseries_m <- get_time_series(sub)
+
+    png(filename=sprintf("plot/plot_average_p_day_%s.png", sub))
+    print(autoplot(timeseries_m) + labs(y = 'post_count', x = 'time', title = sprintf("plot_average_p_day_%s", sub)))
+    dev.off()
+    
+     #png(filename=sprintf("plot/plot_monthly_ts_%s.png", sub))
+    #print(autoplot(stats::decompose(timeseries_m, type="mult")) + labs(y = 'post_count', x = 'time', title = sprintf("plot_decompose_%s", sub)))
+    #print(autoplot(timeseries_m) + labs(y = 'post_count', x = 'time', title = sprintf("plot_%s", sub)))
+    #dev.off()
+
+ }
+
+#timeseries_m  <- get_time_series('COVID19_support') 
+
+```
+# here we have the decompose plots
+```{r decompose, echo=FALSE}
+#'HealthAnxiety', 'SocialAnxiety' 'socialskills',
+subreddits <- c('_Anxiety_','AnxietyDepression', 'OCD', 'adhd_anxiety', 'Anxietyhelp',  'ForeverAlone')
+
+path = '/Users/lucia/phd_work/pandemic_anxiety/activity'
+setwd(path)
+for (sub in subreddits){
+    print(sub)
+    timeseries_m <- get_time_series(sub)
+    
+    png(filename=sprintf("plot/plot_decompose_ts_%s.png", sub))
+    print(autoplot(stats::decompose(timeseries_m, type="mult")) + labs(y = 'post_count', x = 'time', title = sprintf("plot_decompose_%s", sub)))
+    dev.off()
+
+ }
+
+```
+
+
+# Here we examine the seasonality of time series
+```{r pressure, echo=FALSE}
+# deseasonalise
+path = '/Users/lucia/phd_work/pandemic_anxiety/activity'
+setwd(path)
+
+get_time_series_season <- function(subreddit){
+  # get the time series for seasonality
+  files <- list.files(path, pattern=sprintf(".*%s.*csv$", subreddit), full.names=TRUE)
+  print(files)
+  list_of_frames <- lapply(files, read.csv)
+  frames <- bind_rows(list_of_frames, .id = "column_label")
+  frames <- frames[,c('count', 'time')]
+  
+  #group by month 
+  frames$time <-as.Date(frames$time)
+  frames %>%
+  mutate(month = format(time, "%m"), year = format(time, "%Y")) %>%
+  group_by(month, year) %>%
+  summarise(count = mean(count)) -> frames_daily
+  
+  #construct time series with monthly data, get start and end data from the data 
+  frames_daily$time <- with(frames_daily, sprintf("%s-%s-1", frames_daily$year, frames_daily$month))
+  frames_daily$time <- ymd(frames_daily$time)
+  df_ts <- xts(x = frames_daily$count, order.by = frames_daily$time)
+  
+
+  df_ts2 <- xts(x = frames_daily, order.by = frames_daily$time)
+  start_year = as.numeric(strsplit(df_ts2$time[1],'-')[[1]][1])
+  start_month = as.numeric(strsplit(df_ts2$time[1],'-')[[1]][2])
+  end_year = as.numeric(strsplit(tail(df_ts2$time, 1),'-')[[1]][1])
+  end_month = as.numeric(strsplit(tail(df_ts2$time, 1),'-')[[1]][2])
+  
+  timeseries_m <- ts(drop(df_ts),  st = c(start_year, start_month), end = c(end_year, end_month), fr = 12)
+  return (timeseries_m)
+
+}
+
+subreddits <- c('_Anxiety_','AnxietyDepression', 'OCD', 'adhd_anxiety', 'Anxietyhelp',  'ForeverAlone')
+for (sub in subreddits){
+    print(sub)
+    timeseries_m  <- get_time_series_season(sub) 
+    
+    ts.stl <- stl(timeseries_m,"periodic")  # decompose the TS
+    ts.sa <- seasadj(ts.stl)  # de-seasonalize
+
+    png(filename=sprintf("plot/plot_seasonal_%s.png", sub))
+    print(seasonplot(ts.sa, 12, col=rainbow(12), year.labels=TRUE, main= sprintf("Seasonal_plot_%s", sub)))
+    dev.off()
+
+ }
+
+# timeseries_m  <- get_time_series_season('adhd_anxiety') 
+# ts.stl <- stl(timeseries_m,"periodic")  # decompose the TS
+# ts.sa <- seasadj(ts.stl)  # de-seasonalize
+# plot(timeseries_m, type="l")  # original series
+# plot(ts.sa, type="l")  # seasonal adjusted
+# seasonplot(ts.sa, 12, col=rainbow(12), year.labels=TRUE, main="Seasonal plot") # seasonal frequency set as 12 for monthly data.
+
+```
+
+
+
+# seasonality and stationary
+```{r pressure, echo=FALSE}
+print(autoplot(stats::decompose(timeseries_m, type="mult")) + labs(y = 'post_count', x = 'time', title = sprintf("plot_decompose_%s", sub)))
+# test stationary
+# autocorrelation 
+#It shows if the previous states (lagged observations) of the time series has an influence on the current state. In the autocorrelation chart, if the autocorrelation crosses the dashed blue line, it means that specific lag is significantly correlated with current series.
+acfRes <- acf(timeseries_m) 
+adf.test(timeseries_m)   #<0.05 is stationary
+
+# partial autocorrelation
+pacfRes <- pacf(timeseries_m) 
+
+#detrend a time series
+#Use linear regression to model the Time Series data with linear indices (Ex: 1, 2, .. n). The resulting model’s residuals is a representation of the time series devoid of the trend.
+trModel <- lm(timeseries_m ~ c(1:length(timeseries_m)))
+plot.ts(resid(trModel), type="l") 
+
+
+#deseasonlise
+# Seasonal Differencing
+nsdiffs(timeseries_m)  # number for seasonal differencing needed
+#> 1
+timeseries_m_seasdiff <- diff(timeseries_m, lag=frequency(timeseries_m), differences=1)  # seasonal differencing
+plot(timeseries_m_seasdiff, type="l", main="Seasonally Differenced")  # still not stationary!
+
+# compare normal plot with deseasonal plot, we can definely notice the spikes at spring
+plot(timeseries_m) 
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
