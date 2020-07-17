@@ -12,7 +12,8 @@ class TopicPercent:
     def __init__(self, filename):
 
         self.path_input = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/dominance_topic_doc_level/'
-        self.filename = filename.split('/')[9]
+        #self.filename = filename.split('/')[9]
+        self.filename = filename.split('/')[10]
         self.lda_results = pd.read_csv(filename)
         self.path_output = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/'
 
@@ -183,7 +184,6 @@ class getTopicPosts:
 
 #match topic from files
 path_topic_result = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/dominance_topic_doc_level/new_timeline/'
-
 def loop_all_doc():
     """Loop all the topic docs """
     allfiles = glob.glob(os.path.join(path_topic_result, '*'))
@@ -194,20 +194,13 @@ def loop_all_doc():
         getp.loop_topics(all_d, file.split('/')[10].split('.')[0])
 
 
-loop_all_doc()
-
 #d = getp.get_ids()
 #docs = pd.merge(d, all_d, on='post_id', how='left')
-
-
-
-
-
 
 #
 #tp = TopicPercent('dominance_fall_2019_10_Anxiety.csv')
 if __name__ == "__main__":
-    path_input = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/dominance_topic_doc_level/'
+    path_input = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/dominance_topic_doc_level/new_timeline/'
     #allfiles = [f for f in listdir(tp.path_input) if isfile(join(tp.path_input, f))]
     allfiles = glob.glob(os.path.join(path_input, '*'))
     for file in allfiles:
@@ -216,6 +209,8 @@ if __name__ == "__main__":
         dominance = tp.dominant_topic_percent()
         prevalence = tp.get_topic_prevalence()
 
+    # get sample for topics
+    #loop_all_doc()
 
 
 

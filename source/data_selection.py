@@ -13,7 +13,7 @@ class DataSelection:
         self.path_data = '/disk/data/share/s1690903/pandemic_anxiety/data/posts/COVID19_support_postids_posts.csv'
         self.data = pd.read_csv(self.path_data)
 
-    def clean_data(self):
+    def clean_data(self) -> pd.DataFrame:
         """Remove duplicates and deleted posts and nan"""
 
         data = self.data.drop_duplicates(subset='post_id', keep='first', inplace=False)
@@ -27,8 +27,9 @@ class DataSelection:
         data = data.dropna(subset=['text'])
         return data
 
-    def filter_data(self):
+    def filter_data(self) -> pd.DataFrame:
         """filter data with certain tags"""
+
         clean_data = self.clean_data()
         filter_data = clean_data[~(clean_data['link_flair_text'] == 'Resources') | (clean_data['link_flair_text'] == 'Discussion')]
 
@@ -50,23 +51,41 @@ class DataSelection:
 
         return feb, apr, may, jun
 
-    def random_sample(self, num):
+    def random_sample(self, num) -> pd.DataFrame:
+        """Select random sample """
+
         feb, apr, may, jun = self.get_monthly_data()
-        feb = feb.sample(num)
-        apr = apr.sample(num)
-        may = may.sample(num)
-        jun = jun.sample(num)
+        feb = feb.sample(num, random_state=123)
+        apr = apr.sample(num, random_state=123)
+        may = may.sample(num, random_state=123)
+        jun = jun.sample(num, random_state=123)
 
         return feb, apr, may, jun
 
+    def resample(self, feb_sel, apr_sel, may_sel, jun_sel, num) -> pd.DataFrame:
+        """Resample """
 
+        feb, apr, may, jun = self.get_monthly_data()
+        common_feb = feb.merge(feb_sel, on=['post_id'])
+        common_apr = apr.merge(apr_sel, on=['post_id'])
+        common_may = may.merge(may_sel, on=['post_id'])
+        common_jun = jun.merge(jun_sel, on=['post_id'])
 
+        new_feb = feb[(~feb.post_id.isin(common_feb.post_id))].sample(num, random_state=123)
+        new_apr = apr[(~apr.post_id.isin(common_apr.post_id))].sample(num, random_state=123)
+        new_may = may[(~may.post_id.isin(common_may.post_id))].sample(num, random_state=123)
+        new_jun = jun[(~jun.post_id.isin(common_jun.post_id))].sample(num, random_state=123)
+
+        return new_feb, new_apr, new_may, new_jun
 
 
 ds = DataSelection()
 # filtered = ds.filter_data()
-# filtered.to_csv('/disk/data/share/s1690903/pandemic_anxiety/data/annotations/covid19_support.csv') 
-feb, apr, may, jun = ds.get_monthly_data(100)
+# filtered.to_csv('/disk/data/share/s1690903/pandemic_anxiety/data/annotations/covid19_support.csv')
+feb_sel, apr_sel, may_sel, jun_sel = ds.random_sample(100)
+new_feb, new_apr, new_may, new_jun  = ds.resample(feb_sel, apr_sel, may_sel, jun_sel, 100)
+
+
 #divide_data
 
 
