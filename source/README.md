@@ -11,6 +11,7 @@
 
 * step 3: extract entities
 * step 4: LDA topic modeling. The pipeline optimize paramters according to coherence score
+lda_topic.py also gives a sample of text from each topic
 
 ### Time series
 
@@ -23,3 +24,9 @@
 
 ### Count topic percentage
 * we compute the percentage of certain topic in a dataset topic_percent.py
+
+### R plots
+* plotting topic changes and time series activities
+
+### Select data for covid19 annotation
+data_selection.py

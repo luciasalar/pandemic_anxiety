@@ -20,7 +20,6 @@ import numpy as np
 import datetime 
 from datetime import datetime 
 import csv
-#from tfidf_basic_search import *
 import gc
 import os
 # type hints
@@ -28,6 +27,8 @@ from typing import Dict, Tuple, Sequence
 import typing
 from ruamel import yaml
 import contractions
+from gensim.sklearn_api import LdaTransformer
+import lda
 
 # -*- encoding: utf-8 -*-
 
@@ -50,9 +51,9 @@ class ProcessText:
         data = self.data.drop_duplicates(subset='post_id', keep='first', inplace=False)
         data = data[~data['text'].isin(['[removed]'])]
         data = data[~data['text'].isin(['[deleted]'])]
-        data = data[~data['text'].str.lower().isin(['deleted'])]
-        data = data[~data['text'].str.lower().isin(['removed'])]
-        data['text'].replace('', np.nan, inplace=True)
+        #data = data[~data['text'].str.lower().isin(['deleted'])]
+        #data = data[~data['text'].str.lower().isin(['removed'])]
+        #data['text'].replace('', np.nan, inplace=True)
         data = data.dropna(subset=['text'])
         return data
 
@@ -64,9 +65,13 @@ class ProcessText:
         mydict = lambda: defaultdict(mydict)
         data_dict = mydict()
 
-        for pid, text, time in zip(data['post_id'], data['text'], data['time']):
-            data_dict[pid]['text'] = text
-            data_dict[pid]['time'] = time
+        if 'time' in data.columns:
+            for pid, text, time in zip(data['post_id'], data['text'], data['time']):
+                data_dict[pid]['text'] = text
+                data_dict[pid]['time'] = time
+        else:
+            for pid, text in zip(data['post_id'], data['text']):
+                data_dict[pid]['text'] = text
 
         return data_dict
 
@@ -80,7 +85,7 @@ class ProcessText:
             sent = v['text']
             # url
             sent = re.sub(r'http\S+', '', sent)
-            sent = re.sub(r'^https?:\/\/.*[\r\n]*', '', sent, flags=re.MULTILINE)
+            #sent = re.sub(r'^https?:\/\/.*[\r\n]*', '', sent, flags=re.MULTILINE)
             #remove contractions
             sent = contractions.fix(sent)
             # remove line breaks
@@ -92,7 +97,8 @@ class ProcessText:
             sent = str(sent).lower().translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation)))
             if len(sent.split()) > 2:
                 cleaned[k]['text'] = sent
-                cleaned[k]['time'] = v['time']
+                if 'time' in data_dict.values():
+                    cleaned[k]['time'] = v['time']
 
         return cleaned
 
@@ -159,6 +165,23 @@ class LDATopic:
 
         return lda_model, coherence
 
+    def get_lda_score_eval2(self, dictionary: typing.Dict[str, str], bow_corpus) -> list:
+        """LDA model and coherence score."""
+        # lda_model = gensim.models.ldamodel.LdaModel(bow_corpus, num_topics=self.topic_num, id2word=dictionary, passes=10,  update_every=1, random_state = 300, alpha=self.alpha, eta=self.eta)
+        # the trained model
+        lda_model = LdaTransformer(num_topics=self.topic_num, id2word=dictionary, iterations=10, random_state=300, alpha=self.alpha, eta=self.eta, scorer= 'mass_u')
+
+        #The topic distribution for each input document.
+        docvecs = lda_model.fit_transform(bow_corpus)
+        #pprint(lda_model.print_topics())
+
+        # get coherence score
+        #cm = CoherenceModel(model=lda_model, corpus=bow_corpus, coherence='u_mass')
+        #coherence = cm.get_coherence()
+        #print('coherence score is {}'.format(coherence))
+
+        return lda_model, docvecs
+
     def get_score_dict(self, bow_corpus, lda_model_object) -> pd.DataFrame:
         """
         get lda score for each document
@@ -188,6 +211,16 @@ class LDATopic:
         all_lda_score_dfT = all_lda_score_dfT.fillna(0)
 
         return model, coherence, all_lda_score_dfT, bow_corpus
+
+    def topic_modeling2(self):
+        """Get LDA topic modeling."""
+        # generate dictionary
+        dictionary = gensim.corpora.Dictionary(self.text.values())
+        bow_corpus = [dictionary.doc2bow(doc) for doc in self.text.values()]
+        # modeling
+        model = self.get_lda_score_eval2(dictionary, bow_corpus)
+
+        return model
 
     def format_topics_sentences(self, ldamodel, corpus):
         # Init output, get dominant topic for each document 
@@ -220,7 +253,7 @@ class LDATopic:
         return id_l
 
 
-def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname:str, subreddit):
+def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname:str, subreddit = None):
         """Select the best lda model with extracted text 
         text: entities dictionary
         domTname:file name for the output
@@ -438,25 +471,10 @@ if __name__ == "__main__":
     subreddits = evn['subreddits']['subs']
     for sub in subreddits:
         #covidApr, covidMay = get_topic_month_timeline(sub, 2020, 15) #year, num_topic
-        get_topic_covid_timeline(sub, 2020, 15)
+        get_topic_covid_timeline(sub, 2019, 15)
 
 
 # data = pd.read_csv('/disk/data/share/s1690903/pandemic_anxiety/data/posts/OCD_postids_posts.csv')
-# data = data.drop_duplicates(subset='post_id', keep='first', inplace=False)
-# data = data[~data['text'].isin(['[removed]'])]
-# data = data[~data['text'].isin(['[deleted]'])]
-# data = data[~data['text'].str.lower().isin(['deleted'])]
-# data = data[~data['text'].str.lower().isin(['removed'])]
-# data['text'].replace('', np.nan, inplace=True)
-# data = data.dropna(subset=['text'])
-
-# pt = ProcessText('posts/OCD_postids_posts.csv')
-# cleaned_text = pt.simple_preprocess()
-# data = pd.DataFrame.from_dict(cleaned_text, orient='index')
-
-# data.to_csv('/disk/data/share/s1690903/pandemic_anxiety/data/posts/test.csv')
-
-
 
 
 

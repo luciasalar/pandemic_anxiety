@@ -97,7 +97,7 @@ def get_posts(subreddit, year, day, month, iteration, end_year, end_day, end_mon
 
 
 # Axiety reach 2020, 2, 28
-get_posts('COVID19_support', 2020, 1, 7, 100, 2020, 20, 5)
+get_posts('COVID19_support', 2020, 10, 8, 100, 2020, 1, 7)
 
 
 #Social skill starts from Dec 2018
