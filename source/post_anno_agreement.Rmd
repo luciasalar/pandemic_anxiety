@@ -1,0 +1,198 @@
+---
+title: "Post_anno_agreement"
+author: "lushi"
+date: "18/08/2020"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+require(dplyr)
+require(readr)
+require(purrr)
+knitr::opts_chunk$set(echo = TRUE)
+library(compare)
+require(xlsx)
+library(irr)
+require(condformat)
+library(tibble)
+```
+
+## R Markdown
+This script combines all the annotations in different folders (identified by annotator names) google folder: pandemic_anxiety/post_annotation/*Folders
+
+The script computes kappa (at r compare), then it identifies the disagreed annotation (at r compare 2), the annotation disagreements are colorred in GREEN. For var 'anxiety', there are more than 2 classes, so I attached my annotation as comparision. 
+
+YOU MAY CHANGE YOUR ANNOTATION AFTER OUR DISCUSSION, BUT PLEASE HIGHLIGHT THEM IN YELLOW
+
+
+```{r readfile1}
+setwd('/Users/lucia/Desktop/anno_test/lucia/')
+files1 <- dir(pattern = "*.csv")
+lucia_data <- files1 %>%
+ map(read_csv) %>%    # read in all the files individually, using
+                       # the function read_csv() from the readr package
+ reduce(rbind)
+lucia_data$focus <- NULL
+
+
+
+```
+
+```{r readfile2}
+setwd('/Users/lucia/Desktop/anno_test/daniela')
+files2 <- dir(pattern = "*.csv")
+daniela_data <- files2 %>%
+  map(read_csv) %>%    # read in all the files individually, using
+                       # the function read_csv() from the readr package
+  reduce(rbind)
+
+daniela_data$focus <- NULL
+```
+
+
+```{r readfile3}
+setwd('/Users/lucia/Desktop/anno_test/sophie')
+files2 <- dir(pattern = "*.csv")
+sophie_data <- files2 %>%
+  map(read_csv) %>%    # read in all the files individually, using
+                       # the function read_csv() from the readr package
+  reduce(rbind)
+```
+
+
+## merging data
+
+```{r merge, echo=FALSE}
+file1 <- lucia_data[complete.cases(lucia_data$anxiety), ]
+file2 <- daniela_data[complete.cases(daniela_data$anxiety), ]
+#file2 <- sophie_data[complete.cases(sophie_data$anxiety), ]
+file1[is.na(file1)] <- 0
+file2[is.na(file2)] <- 0
+
+
+#Link health infected with Break_guideline and health_work
+file1$health_infected <- ifelse(file1$break_guideline == 1, 1, file1$health_infected)
+
+file1$health_infected <- ifelse(file1$health_work == 1, 1, file1$health_infected)
+
+file2$health_infected <- ifelse(file2$break_guideline == 1, 1, file2$health_infected)
+
+file2$health_infected <- ifelse(file2$health_work == 1, 1, file2$health_infected)
+
+all_data <- merge(file1, file2, by = 'post_id')
+```
+
+# find differences
+
+
+
+```{r compare, echo=FALSE}
+group1 = c("anxiety.x", "financial_career.x", "info_sharing.x" , "quar_social.x" ,"info_sharing_personal.x", "health_infected.x", "break_guideline.x", "health_work.x", "mental_health.x", "rant.x", "death.x", "mourn_death.x","other.x", "travelling.x", "future.x" )
+
+  
+group2 = c("anxiety.y", "financial_career.y", "info_sharing.y" , "quar_social.y" , "info_sharing_personal.y", "health_infected.y", "break_guideline.y", "health_work.y", "mental_health.y", "rant.y", "death.y", "mourn_death.y","other.y",  "travelling.y", "future.y" )
+
+get_difference <- function(a, b) {
+    
+      k <- kappa2(all_data[,c(a,b)], "unweighted")
+      all_data$match_names <- ifelse(all_data[,c(a)]==all_data[,c(b)], T, F)
+      diff <- all_data$post_id[all_data$match_names == FALSE]
+      print(paste0("******variable name is:*************", a))
+      print(k)
+      print("ID for Disagreed Posts:")
+     # print(diff)
+  
+      d <- data.frame(diff)
+      col_name <- strsplit(a, ".", fixed = TRUE )[[1]][1]
+      colnames(d) <- c(col_name)
+      return (d)
+      
+    #print(d)
+}
+
+group_df <- data.frame(group1 = group1,
+                group2 = group2)
+  
+#loop through get difference, here you can see lists of disagreed post ids
+
+datalist = list()
+for(i in seq_len(nrow(group_df))) {
+  diff <- get_difference(toString(group_df$group1[i]), toString(group_df$group2[i]))
+  datalist[[i]] <- diff
+    
+}
+
+```
+
+
+
+```{r compare2, echo=FALSE}
+setwd('/Users/lucia/Desktop/anno_test/')
+# find common posts 
+common <- intersect(file1$post_id, file2$post_id)  
+file1_com <- file1[file1$post_id %in% common,] # give you common rows in data frame 1  
+file2_com <- file2[file2$post_id %in% common,] # give you common rows in data frame 2
+file2_com <- file2_com[match(file1_com$post_id, file2_com$post_id),]
+
+#get a table with true false then color the true false
+common_df <- as.data.frame(file1_com  == file2_com)
+common_df$text <- file1_com$text
+common_df$title <- file1_com$title
+common_df$post_id <- file1_com$post_id
+  
+# automatic coloring
+colnames(common_df)[4:18] <- paste0(colnames(common_df)[4:18], '_bool')
+
+# here you need to define whose annotation you want to view
+common_df <- cbind(common_df, file2_com[,4:18])
+common_df <- add_column(common_df, anxiety_daniel = file1_com$anxiety, .after = 19)
+
+
+cf <- condformat(common_df) %>%
+    rule_fill_discrete(anxiety, expression=anxiety_bool==FALSE) %>%
+   rule_fill_discrete(financial_career, expression=financial_career_bool==FALSE) %>%
+ rule_fill_discrete(quar_social, expression=quar_social_bool==FALSE) %>%
+rule_fill_discrete(info_sharing, expression=info_sharing_bool==FALSE) %>%
+rule_fill_discrete(info_sharing_personal, expression=info_sharing_personal==FALSE) %>%
+rule_fill_discrete(health_infected, expression=health_infected_bool==FALSE) %>%
+ rule_fill_discrete(break_guideline, expression=break_guideline_bool==FALSE) %>%
+ rule_fill_discrete(health_work, expression=health_work_bool==FALSE) %>%
+ rule_fill_discrete(mental_health, expression=mental_health_bool==FALSE) %>%
+ rule_fill_discrete(death, expression=death_bool==FALSE) %>%
+ rule_fill_discrete(mourn_death, expression=mourn_death_bool==FALSE) %>%
+ rule_fill_discrete(travelling, expression=travelling_bool==FALSE) %>%
+ rule_fill_discrete(future, expression=future_bool==FALSE)
+
+#cf <- cf[, -grep("_bool", colnames(cf))]
+
+
+# save file as excel 
+condformat2excel(
+  cf,
+  'Daniela_agreement/daniela1',
+ # 'sophie_agreement/sophie1',
+  sheet_name = "Sheet1",
+  overwrite_wb = FALSE,
+  overwrite_sheet = TRUE
+)
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
