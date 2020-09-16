@@ -91,13 +91,18 @@ def get_posts(subreddit, year, day, month, iteration, end_year, end_day, end_mon
 
 
 # now we loop through all the subs
-# subreddits = evn['subreddits']['subs_all']
+#get_posts('Anxiety', 2017, 1, 10, 100, 2017, 1, 1)
+
+
+get_posts('HealthAnxiety', 2020, 31, 8, 100, 2020, 30, 5)
+
+# subreddits = evn['subreddits']['subs2']
 # for sub in subreddits:
-#     get_posts(sub, 2020, 21, 5, 20, 2020, 6, 1)
+#     get_posts(sub, 2020, 31, 8, 100, 2020, 1, 5)
 
 
 # Axiety reach 2020, 2, 28
-get_posts('COVID19_support', 2020, 10, 8, 100, 2020, 1, 7)
+#get_posts('Anxiety', 2017, 30, 12, 100, 2017, 10, 1) #end-day-month, start
 
 
 #Social skill starts from Dec 2018

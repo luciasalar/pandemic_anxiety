@@ -118,17 +118,17 @@ evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
 evn = load_experiment(evn_path + 'experiment.yaml')
 
 path_result = '/disk/data/share/s1690903/pandemic_anxiety/results/stats/'
-#w = stats_loop(path_result, 'Anxiety', 2019)
+w = stats_loop(path_result, 'Anxietyhelp', 2020)
 
 #now we loop through all the subs
-# subreddits = evn['subreddits']['subs_all']
+# subreddits = evn['subreddits']['subs']
 # for sub in subreddits:
 #     print(sub)
-#     w = stats_loop(path_result, sub, 2017)
+#     w = stats_loop(path_result, sub, 2020)
 
 
 
-w = stats_loop(path_result, 'COVID19_support', 2020)
+#w = stats_loop(path_result, 'SocialAnxiety', 2018)
 
 
 

@@ -51,9 +51,9 @@ class ProcessText:
         data = self.data.drop_duplicates(subset='post_id', keep='first', inplace=False)
         data = data[~data['text'].isin(['[removed]'])]
         data = data[~data['text'].isin(['[deleted]'])]
-        #data = data[~data['text'].str.lower().isin(['deleted'])]
-        #data = data[~data['text'].str.lower().isin(['removed'])]
-        #data['text'].replace('', np.nan, inplace=True)
+        data = data[~data['text'].str.lower().isin(['deleted'])]
+        data = data[~data['text'].str.lower().isin(['removed'])]
+        data['text'].replace('', np.nan, inplace=True)
         data = data.dropna(subset=['text'])
         return data
 
@@ -81,6 +81,7 @@ class ProcessText:
         data_dict = self.data_dict()
         mydict = lambda: defaultdict(mydict)
         cleaned = mydict()
+        #count = 0
         for k, v in data_dict.items():
             sent = v['text']
             # url
@@ -90,15 +91,19 @@ class ProcessText:
             sent = contractions.fix(sent)
             # remove line breaks
             sent = str(sent).replace('\n', ' ')
-            sent = str(sent).replace(' â€™', 'i') 
+            #sent = str(sent).replace(' â€™', 'i')
             sent = str(sent).replace('\u200d', ' ')
             # lower case and remove punctuation
-            #sent = str(sent).lower().translate(str.maketrans('', ' ', string.punctuation))
             sent = str(sent).lower().translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation)))
             if len(sent.split()) > 2:
                 cleaned[k]['text'] = sent
-                if 'time' in data_dict.values():
-                    cleaned[k]['time'] = v['time']
+
+            if v['time'] is not None:
+                cleaned[k]['time'] = v['time']
+                #print(cleaned[k]['time'])
+            # count = count + 1
+            # if count == 1000:
+            #     break
 
         return cleaned
 
@@ -112,15 +117,16 @@ class ProcessText:
         nlp = en_core_web_sm.load()
         all_extracted = {}
         for k, v in cleaned_text.items():
+            if bool(v['text']) == True:
             #v = v.replace('incubation period', 'incubation_period')
-            doc = nlp(v['text'])
-            nouns = ' '.join(ps.stem(str(v)) for v in doc if v.pos_ is 'NOUN').split()
-            verbs = ' '.join(ps.stem(str(v)) for v in doc if v.pos_ is 'VERB').split()
-            adj = ' '.join(str(v) for v in doc if v.pos_ is 'ADJ').split()
-            #noun_tr = ' '.join(str(v) for v in doc.noun_chunks).split()
-            all_w = nouns + adj + verbs
-            all_extracted[k] = all_w
-      
+                doc = nlp(v['text'])
+                nouns = ' '.join(ps.stem(str(v)) for v in doc if v.pos_ is 'NOUN').split()
+                verbs = ' '.join(ps.stem(str(v)) for v in doc if v.pos_ is 'VERB').split()
+                adj = ' '.join(str(v) for v in doc if v.pos_ is 'ADJ').split()
+                #noun_tr = ' '.join(str(v) for v in doc.noun_chunks).split()
+                all_w = nouns + adj + verbs
+                all_extracted[k] = all_w
+          
         return all_extracted
 
 
@@ -393,8 +399,8 @@ def get_topic_covid_timeline(subreddit, year: int, num_topic: int) -> pd.DataFra
 
     # here we can set the seasons
     precovid = pt.split_timeline(cleaned_text, '1/1/{}'.format(year), '12/31/{}'.format(year))
-    precovid2 = pt.split_timeline(cleaned_text, '1/1/{}'.format(year-1), '12/31/{}'.format(year-1))
-    covid = pt.split_timeline(cleaned_text, '2/1/2020', '5/31/2020')
+    precovid2 = pt.split_timeline(cleaned_text, '1/1/{}'.format(year - 1), '12/31/{}'.format(year-1))
+    covid = pt.split_timeline(cleaned_text, '2/1/2020', '8/30/2020')
     precovid.update(precovid2)
  
    #run lda for each period
@@ -453,18 +459,18 @@ def get_topic_month_timeline(subreddit, year: int, num_topic: int) -> pd.DataFra
 
     # #save most dominant topics for the four season results so that we can put it on the big table
     
-    f = open(pt.path_result + 'domance_output_covid_support.csv'.format(subreddit, num_topic), 'w', encoding='utf-8-sig')
+    f = open(pt.path_result + 'domance_output_{}_support_{}.csv'.format(subreddit, num_topic), 'w', encoding='utf-8-sig')
     writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
     writer_top.writerow(['topic_number_covidFeb'] + ['keywords_covidFeb'] + ['topic_number_covidApr'] + ['keywords_covidApr'] + ['topic_number_covidMay'] + ['keywords_covidMay'])
     result_row = [[dt_num_covidFeb, topic_kw_covidFeb, dt_num_covidApr, topic_kw_covidApr, dt_num_covidMay, topic_kw_covidMay]]
     writer_top.writerows(result_row)
     f.close()
 
-  
+
 
 if __name__ == "__main__":
 
-    #get_topic_season('Anxiety', 2020, 10) #year, num_topiclda_
+    #get_topic_season('Anxiety', 2020, 10) #year, xnum_topiclda_
 #again, we can totally loop through a list of subreddit names
     evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
     evn = load_experiment(evn_path + 'experiment.yaml')
@@ -474,6 +480,10 @@ if __name__ == "__main__":
         get_topic_covid_timeline(sub, 2019, 15)
 
 
+    # evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
+    # evn = load_experiment(evn_path + 'experiment.yaml')
+    # subreddits = evn['subreddits']['subs']
+    # get_topic_covid_timeline('HealthAnxiety', 2019, 15)  #here define precovid or covid dataset
 # data = pd.read_csv('/disk/data/share/s1690903/pandemic_anxiety/data/posts/OCD_postids_posts.csv')
 
 
