@@ -4,7 +4,7 @@ import numpy as np
 import re
 import sklearn
 from sklearn.model_selection import train_test_split
-from topic_model_classifier import *
+
 # import nltk
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, TfidfVectorizer
@@ -13,48 +13,48 @@ from sklearn.preprocessing import StandardScaler, Normalizer
 from sklearn.metrics import classification_report
 from collections import defaultdict
 
-# from sklearn.linear_model import LogisticRegression
+# the features
+import readability 
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from lda_topic import *
+
 from sklearn import svm
 from sklearn.svm import LinearSVC
+from sklearn.model_selection import GridSearchCV
+
+# the classifiers
 # from sklearn.metrics import confusion_matrix, f1_score, precision_score,\
 # recall_score, confusion_matrix, classification_report, accuracy_score 
 # from sklearn.base import BaseEstimator, TransformerMixin
 # from sklearn.preprocessing import FunctionTransformer
 # from sklearn.feature_selection import SelectFromModel
+# from sklearn.linear_model import LogisticRegression
 
-
-from sklearn.model_selection import GridSearchCV
-import readability 
 # from sklearn.ensemble import ExtraTreesClassifier
 # from sklearn.ensemble import RandomForestClassifier
 # from sklearn.naive_bayes import GaussianNB
-# 
+# from sklearn.dummy import DummyClassifier
 
 from ruamel import yaml
 # import datetime
 # import matplotlib.pyplot as plt
 import os
-# from topic_model import *
-from lda_topic import *
 import time
 # import logging
 import csv
-# from sklearn.decomposition import TruncatedSVD
-# from construct_mood_feature import *
-# from construct_mood_transition_feature import *
 import gc
 import datetime
-# # from quotation_fea import *
-# from sklearn.dummy import DummyClassifier
 import glob
 from typing import Dict, Tuple, Sequence
 import typing
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
 
 
 #predict anxiety and fear entity
-#to do: combine title with body text
+# we use combined text and title as input  combine_text.csv
+# combine columns in line 393
 # need to change lda feature when input is changed, use the optimized function to get the best lda model
+# also change LIWC  testliwc.csv check /annotations for feature files
 
 
 def load_experiment(path_to_experiment):
@@ -88,14 +88,35 @@ class Read_raw_data:
 
         return all_files_pd
 
+    def combine_columns(self, newcol, col1, col2, col3=None):
+        """Combine column labels """
+        all_files = self.read_all_files()
+        if col3 == None:
+            all_files[newcol] = all_files[col1] + all_files[col2]
+            all_files.loc[all_files[newcol] > 1, newcol] = 1
+        else:
+            all_files[newcol] = all_files[col1] + all_files[col2] + all_files[col3]
+            all_files.loc[all_files[newcol] > 1, newcol] = 1
+
+        return all_files
+
+
+
 
 class PrepareData:
 
     def __init__(self, raw_data, labelcol):
         '''define the main path'''
         self.path = '/disk/data/share/s1690903/pandemic_anxiety/data/annotations/'
+
         self.file = raw_data
+        # join the title and text 
+        self.file['text'] = self.file['text'].str.cat(self.file['title'], sep=" ")
         self.labelcol = labelcol
+
+    def save_combined_text(self):
+        self.file.to_csv(self.path + 'combined_text.csv')
+
 
     def convert_text_dict(self, file):
         """Convert text to dictionary format. """
@@ -140,10 +161,10 @@ class PrepareData:
             
 
     def get_liwc(self)-> pd.DataFrame:
-        """Merge all the features."""
+        """Merge all the features. The LIWC runs both text and title"""
 
-        # Read LIWC features. 
-        liwc = pd.read_csv(self.path + 'test_liwc.csv', encoding = "ISO-8859-1")
+        # Read LIWC features.
+        liwc = pd.read_csv(self.path + 'test_liwc.csv', encoding="ISO-8859-1")
         liwc.columns = [str(col) + '_liwc' for col in liwc.columns]
         liwc = liwc.rename(columns={"post_id_liwc": "post_id", "text_liwc": "text", "title_liwc": "title"})
 
@@ -160,10 +181,9 @@ class PrepareData:
 
     def optimize_lda(self):
         """Check the optimized lda scores """
-        pt = ProcessText('annotations/test.csv')
+        pt = ProcessText('annotations/combined_text.csv')
         cleaned_text = pt.simple_preprocess()
         entities = pt.extract_entities(cleaned_text)
-        
         
         # get the optimized parameter 
         sent_topics_df = selected_best_LDA(pt.path_result, entities, 10, 'lda_test.csv')
@@ -186,9 +206,10 @@ class PrepareData:
         pos = self.get_sentiment(text_dict, 'pos')
         pos_df = self.convert_dict_df(pos, 'pos')
         neu = self.get_sentiment(text_dict, 'neu')
-        neu_df = self.convert_dict_df(neu, 'neu')
+        #neu_df = self.convert_dict_df(neu, 'neu')
         senti = neg_df.merge(pos_df, on='post_id')
         #senti = senti.merge(neu_df, on='post_id')
+
         # add feature tag
         senti.columns = [str(col) + '_senti' for col in senti.columns]
         senti = senti.rename(columns={"post_id_senti": "post_id"})
@@ -226,14 +247,11 @@ class PrepareData:
 
         X, y = self.pre_train()
         # get 10% holdout set for testing
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state = 300, stratify = y)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state = 300, stratify = y)
 
         return X_train, X_test, y_train, y_test
         
-# read = Read_raw_data()
-# all_files = read.read_all_files()
-# p = PrepareData(all_files, 'anxiety')
-# all_data = p.merge_features()
+
 
 
 
@@ -347,7 +365,7 @@ class TrainingClassifiers:
         print('prediction...')
       
         y_true, y_pred = self.y_test, grid_search.predict(self.X_test)
-        report = classification_report(y_true, y_pred, output_dict=True)
+        report = classification_report(y_true, y_pred, digits=3)
         #store prediction result
         y_pred_series = pd.DataFrame(y_pred)
         result = pd.concat([y_true.reset_index(drop=True), y_pred_series], axis = 1)
@@ -373,11 +391,19 @@ def loop_the_grid(label): #label column for prediction
     
     read = Read_raw_data()
     all_files = read.read_all_files()
+    # you can combine columns here
+    #all_files = read.combine_columns('finance', 'financial_career', 'health_work')
+    #all_files = read.combine_columns('health', 'health_infected', 'health_prev', 'death')
+
+    # define how do you want to cimbine the predicted var
+    #all_files = read.combine_columns('social', 'quarantine', 'socializing')
+
 
     for classifier in experiment['experiment']:
 
         # prepare environment
         prepare = PrepareData(all_files, label)
+        prepare.save_combined_text()
 
         # split data
         X_train, X_test, y_train, y_test = prepare.get_train_test_split()
@@ -398,14 +424,28 @@ def loop_the_grid(label): #label column for prediction
                 
                 report, grid_search, pipeline = training.test_model(classifier)
 
-                result_row = [[grid_search.best_score_, grid_search.best_params_, pd.DataFrame(report), str(datetime.datetime.now()), classifier, features_list, tfidf_words, label]]
+                result_row = [[grid_search.best_score_, grid_search.best_params_, report, str(datetime.datetime.now()), classifier, features_list, tfidf_words, label]]
 
                 writer_top.writerows(result_row)
 
                 f.close()
                 gc.collect()
-                    
-loop_the_grid('anxiety')
+
+# run lda                   
+# read = Read_raw_data()
+# all_files = read.read_all_files()
+# p = PrepareData(all_files, 'anxiety')
+# p.optimize_lda()
+# all_data = p.merge_features() 
+
+
+loop_the_grid('mental_health') # input which one you want to predict
+#'focus', 'financial_career', 'information_gen',  'socializing' , 'infomation_sharing_private', 'health_infected', 'health_work', 'mental_health', 'rant', 'death', 'mourn_death', 'travelling',
+# list_of_var = ['future']
+
+# for col in list_of_var:
+#     
+
 
 
 

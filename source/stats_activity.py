@@ -118,7 +118,7 @@ evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
 evn = load_experiment(evn_path + 'experiment.yaml')
 
 path_result = '/disk/data/share/s1690903/pandemic_anxiety/results/stats/'
-w = stats_loop(path_result, 'Anxietyhelp', 2020)
+w = stats_loop(path_result, 'HealthAnxiety', 2020)
 
 #now we loop through all the subs
 # subreddits = evn['subreddits']['subs']

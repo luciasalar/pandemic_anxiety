@@ -30,3 +30,6 @@ lda_topic.py also gives a sample of text from each topic
 
 ### Select data for covid19 annotation
 data_selection.py
+
+### ML prediction model
+We use both title and text as input to predict labels

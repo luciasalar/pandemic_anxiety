@@ -30,10 +30,16 @@ class keywordText:
         mydict = lambda: defaultdict(mydict)
         extracted_text = mydict()
         for keyword in keyword_list.split(','):
-            for k, v in text.items():
-                if keyword in v['text'].split():
-                    extracted_text[k]['text'] = v['text']
-                    extracted_text[k]['time'] = v['time']
+            #print(keyword)
+            try:
+                for k, v in text.items():
+                    #print(v['text'])
+                    if keyword in v['text'].lower().split():
+                        extracted_text[k]['text'] = v['text']
+                        extracted_text[k]['time'] = v['time']
+            except:
+                pass
+
 
         return extracted_text
 
@@ -51,18 +57,18 @@ class keywordText:
         #cleaned_text = pt.simple_preprocess()# Simple text process: lower case, remove punc.
         # we only need the spring data
         spring = self.pt.split_timeline(self.cleaned_text, '{}/{}/{}'.format(self.start_month, self.start_day, self.start_year), '{}/{}/{}'.format(self.end_month, self.end_day, self.end_year))
-        extracted_text = self.get_keyword(spring, 'covid,coronavirus,corona,virus,covid-19')
+        extracted_text = self.get_keyword(spring, 'covid,sars,epidemic,infect,coronavirus,corona,virus,covid-19,lockdown,quarantine,distancing,isolation,flatten,ventilator,mask,symptomatic,epidemic,vaccine,viral,epidemiolog')
         per = self.get_percentage(self.cleaned_text, extracted_text)
         print(per)
 
-        return per
+        return per, extracted_text
 
 
 
 
 
-kw = keywordText(2020, 2, 1, 2020, 5, 31, 'HealthAnxiety')
-per = kw.run_kw_percentage()
+# kw = keywordText(2020, 2, 1, 2020, 7, 31, 'COVID19_support')
+# per, extracted_text = kw.run_kw_percentage()
 
 evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
 evn = load_experiment(evn_path + 'experiment.yaml')
@@ -71,10 +77,14 @@ evn = load_experiment(evn_path + 'experiment.yaml')
 subreddits = evn['subreddits']['subs_all']
 for sub in subreddits:
     print(sub)
-    kw = keywordText(2020, 2, 1, 2020, 5, 31, sub)
+    kw = keywordText(2020, 2, 1, 2020, 7, 31, sub)
     per = kw.run_kw_percentage()
 
+#Covid19 0.17
 
+#corona, virus, viral, covid, sars, influenza, pandemic, epidemic, quarantine, lockdown,
+#distancing, national emergency, flatten, infect, ventilator, mask, symptomatic, epidemiolog,
+#immun, incubation, transmission, vaccine
 
 
 

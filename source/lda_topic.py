@@ -331,7 +331,7 @@ def get_dominant_topic(topic_df):
     dt['num'] = dt.index
     # get the most dominant topic
     dt_num = int(dt['num'].head(1))
-    print(dt_num)
+    #print(dt_num)
     topic_kw = topic_df['Topic_Keywords'][topic_df['Dominant_Topic'] == dt_num]
     topic_kw = topic_kw.iloc[0]
     return dt_num, topic_kw
@@ -482,8 +482,7 @@ if __name__ == "__main__":
 
     # evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
     # evn = load_experiment(evn_path + 'experiment.yaml')
-    # subreddits = evn['subreddits']['subs']
-    # get_topic_covid_timeline('HealthAnxiety', 2019, 15)  #here define precovid or covid dataset
+    # get_topic_covid_timeline('OCD', 2019, 15)  #here define precovid or covid dataset
 # data = pd.read_csv('/disk/data/share/s1690903/pandemic_anxiety/data/posts/OCD_postids_posts.csv')
 
 
