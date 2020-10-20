@@ -27,6 +27,7 @@ You will perform the following two types of annotations for each post:
 
 * Consider whether the post express explicit mention of feeling of nervous, restless or tense.
 * Note that some posts maybe just for sharing a piece of information curated from other social media. Consider whether the author express feeling of nervous while explaining their reason to share this information.
+* Focus on the emotion the author expressed instead of what they worry about. Sometimes you may think the subject that the author worrying is a minor issue to you, but it is a major issue for the author. Therefore, we should only consider anxiety level based on the emotions expressed by the author. 
 
 ### The Annotation will be one of the following:
 
@@ -56,7 +57,7 @@ You will perform the following two types of annotations for each post:
 * The fears and worries could be towards **self, friends and family member**
 * There could be multiple worry subjects in the post
 
-### The Annotation will be one or more of the following:
+### The Annotation will be one or more of the following, chose yes (1) or no (0) for each of the nine variables listed below:
 
 ### Financial/career
 Does the post shows signs of fear or worry about the *financial situation, career or interuption of school*? 
@@ -77,12 +78,15 @@ Does the post shows signs of fear or worry about being infected beacuse of *goin
 
 ### Break Guideline
 Does the post shows signs of fear or worry that family members, friends and strangers *do not follow preventative measurements* in supermarket, public transportation and any other enclosed environment. 
+	* Note that the guidelines varied according to location and stage of the pandemic. We should consider that guideline as *Guidelines that the author thinks as appropriate*  For example, "I feel annoyed that people stand so close to each other". Standing close to each other is not inappropriate if the people are from the same household, however, the author thinks this is inappropriate and that gives some worries.
 	* Worry about we have to use mask forever. 
 	* Worry about what should be the appropriate the preventative measure in a given sitatution.
 
 ### Mental health
 Does the post shows fear or worry about *mental health* of self, friends or family?
-Does the author focus on expressing their worry, anxiety, author seem to *struggle with mental health issues*?
+Does the author focus on expressing their worry, anxiety, author seem to *struggle with mental health issues*? 
+	* Consider keywords *I am worry about my mental health is going to get worse*
+	* Consider if the majority content of the post is to describe the mental health situation of the author
 
 
 ### Death
