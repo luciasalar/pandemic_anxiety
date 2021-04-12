@@ -94,11 +94,11 @@ def get_posts(subreddit, year, day, month, iteration, end_year, end_day, end_mon
 #get_posts('Anxiety', 2017, 1, 10, 100, 2017, 1, 1)
 
 
-get_posts('HealthAnxiety', 2020, 31, 8, 100, 2020, 30, 5)
+#get_posts('COVID19_support', 2020, 31, 12, 100, 2020, 30, 10)
 
-# subreddits = evn['subreddits']['subs2']
-# for sub in subreddits:
-#     get_posts(sub, 2020, 31, 8, 100, 2020, 1, 5)
+subreddits = evn['subreddits']['subs']
+for sub in subreddits:
+    get_posts(sub, 2020, 31, 12, 100, 2020, 30, 10)
 
 
 # Axiety reach 2020, 2, 28
