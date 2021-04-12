@@ -50,26 +50,36 @@ class DataSelection:
         may = filtered[(filtered['time'] > '2020-05-1') & (filtered['time'] < '2020-05-31')]
         jun = filtered[(filtered['time'] > '2020-06-1') & (filtered['time'] < '2020-06-30')]
         july = filtered[(filtered['time'] > '2020-07-1') & (filtered['time'] < '2020-07-31')]
+        aug = filtered[(filtered['time'] > '2020-08-1') & (filtered['time'] < '2020-08-31')]
+        sep = filtered[(filtered['time'] > '2020-09-1') & (filtered['time'] < '2020-09-30')]
+        octo = filtered[(filtered['time'] > '2020-10-1') & (filtered['time'] < '2020-10-30')]
 
-        return feb, apr, may, jun, july
+        return feb, apr, may, jun, july, aug, sep, octo
 
     def random_sample(self, num) -> pd.DataFrame:
         """Select random sample """
 
-        feb, apr, may, jun, july = self.get_monthly_data()
+        feb, apr, may, jun, july, aug, sep, octo = self.get_monthly_data()
         feb = feb.sample(num, random_state=123)
         apr = apr.sample(num, random_state=123)
         may = may.sample(num, random_state=123)
         jun = jun.sample(num, random_state=123)
         july = july.sample(num, random_state=123)
+        Aug = aug.sample(num, random_state=123)
+        Sep = sep.sample(num, random_state=123)
+        Oct = octo.sample(num, random_state=123)
+
 
         feb.to_csv(self.save_path_data + 'feb1.csv')
         apr.to_csv(self.save_path_data + 'apr1.csv')
         may.to_csv(self.save_path_data + 'may1.csv')
         jun.to_csv(self.save_path_data + 'jun1.csv')
         july.to_csv(self.save_path_data + 'july1.csv')
+        Aug.to_csv(self.save_path_data + 'Aug.csv')
+        Sep.to_csv(self.save_path_data + 'Sep.csv')
+        Oct.to_csv(self.save_path_data + 'Oct.csv')
 
-        return feb, apr, may, jun, july
+        return feb, apr, may, jun, july, Aug, Sep, Oct
 
     def resample(self, feb_sel, apr_sel, may_sel, jun_sel, july_sel, num) -> pd.DataFrame:
         """Resample """
@@ -93,7 +103,7 @@ class DataSelection:
 ds = DataSelection()
 # filtered = ds.filter_data()
 # filtered.to_csv('/disk/data/share/s1690903/pandemic_anxiety/data/annotations/covid19_support.csv')
-feb_sel, apr_sel, may_sel, jun_sel, july_sel = ds.random_sample(100)
+feb_sel, apr_sel, may_sel, jun_sel, july_sel, Aug_sel, Sep_sel, Oct_sel = ds.random_sample(100)
 # get another 100 posts
 #new_feb, new_apr, new_may, new_jun, new_july = ds.resample(feb_sel, apr_sel, may_sel, jun_sel, july_sel 100)
 
