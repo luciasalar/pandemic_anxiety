@@ -22,6 +22,7 @@ from sklearn import svm
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import GridSearchCV
 
+
 # the classifiers
 # from sklearn.metrics import confusion_matrix, f1_score, precision_score,\
 # recall_score, confusion_matrix, classification_report, accuracy_score 
@@ -66,27 +67,34 @@ def load_experiment(path_to_experiment):
 
 class Read_raw_data:
     def __init__(self):
-        self.path = '/disk/data/share/s1690903/pandemic_anxiety/data/annotations/post_anno/'
+        self.path = '/disk/data/share/s1690903/pandemic_anxiety/data/anno_test/'
 
     def read_all_files(self) -> pd.DataFrame:
-        """ Read all the annotation files. """
+        """ Read all the annotation files. Get data for liwc """
 
-        all_files = []
-        for file in glob.glob(self.path + "*.csv"):
-            file_pd = pd.read_csv(file)
-            all_files.append(file_pd)
+        all_anno = pd.read_csv(self.path + 'all_data_text.csv') # annotated data
+        all_anno = all_anno[['post_id', 'anxiety', 'financial_career', 'quar_social', 'health_infected', 'break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future']]
 
-        all_files_pd = pd.concat(all_files)
+        all_covid = pd.read_csv(self.path + 'COVID19_support.csv') #covid19 support 
 
-        # Drop those without annotations.
-        all_files_pd = all_files_pd[all_files_pd['anxiety'].notna()]
+        # merge annotated data with all data
+        all_files_pd = pd.merge(all_covid, all_anno, on='post_id', how='outer')
+
+        # recode anxiety level
+        all_files_pd['text'] = all_files_pd['text'].replace(np.nan, 0)
+        all_files_pd['anxiety'] = all_files_pd['anxiety'].replace(0, 1)
+
+        #drop duplication
+        all_files_pd = all_files_pd.drop_duplicates(subset=['post_id'])
 
         # Replace Nan with 0.
-        all_files_pd = all_files_pd.replace(np.nan, 0)
-        liwc_file = all_files_pd[['title', 'text', 'post_id']]
-        liwc_file.to_csv('/disk/data/share/s1690903/pandemic_anxiety/data/annotations/test.csv')
+        #liwc_file = all_files_pd[['title', 'text', 'post_id']]
+       # liwc_file.to_csv('/disk/data/share/s1690903/pandemic_anxiety/data/annotations/test.csv', encoding='utf-8', index=False) # liwc file
 
         return all_files_pd
+
+    #def increase_data(self):
+
 
     def combine_columns(self, newcol, col1, col2, col3=None):
         """Combine column labels """
@@ -105,17 +113,19 @@ class Read_raw_data:
 
 class PrepareData:
 
-    def __init__(self, raw_data, labelcol):
+    def __init__(self, data, labelcol):
         '''define the main path'''
-        self.path = '/disk/data/share/s1690903/pandemic_anxiety/data/annotations/'
 
-        self.file = raw_data
-        # join the title and text 
+        self.path = '/disk/data/share/s1690903/pandemic_anxiety/data/anno_test/'
+        self.file = pd.read_csv(self.path + data)
+        # join the title and text
         self.file['text'] = self.file['text'].str.cat(self.file['title'], sep=" ")
         self.labelcol = labelcol
 
     def save_combined_text(self):
-        self.file.to_csv(self.path + 'combined_text.csv')
+        """combine title with text"""
+
+        self.file.to_csv(self.path + 'combined_text_test.csv')
 
 
     def convert_text_dict(self, file):
@@ -137,9 +147,11 @@ class PrepareData:
         read_dict = mydict()
 
         for k, text in text_dict.items():
-            result = readability.getmeasures(text, lang='en')
-            readability_score = result['readability grades']['FleschReadingEase']
+        
+            #print(text)
+            result = readability.getmeasures(str(text), lang='en')
 
+            readability_score = result['readability grades']['FleschReadingEase']
             read_dict[k] = readability_score
 
         return read_dict
@@ -152,7 +164,7 @@ class PrepareData:
         senti_dict = mydict()
         analyzer = SentimentIntensityAnalyzer()
 
-        for k, text in text_dict.items(): 
+        for k, text in text_dict.items():
             result = analyzer.polarity_scores(text) 
 
             senti_dict[k] = result[senti]
@@ -164,7 +176,7 @@ class PrepareData:
         """Merge all the features. The LIWC runs both text and title"""
 
         # Read LIWC features.
-        liwc = pd.read_csv(self.path + 'test_liwc.csv', encoding="ISO-8859-1")
+        liwc = pd.read_csv(self.path + 'liwc_data_test.csv', encoding="ISO-8859-1")
         liwc.columns = [str(col) + '_liwc' for col in liwc.columns]
         liwc = liwc.rename(columns={"post_id_liwc": "post_id", "text_liwc": "text", "title_liwc": "title"})
 
@@ -179,14 +191,15 @@ class PrepareData:
 
         return new_df
 
-    def optimize_lda(self):
+    def optimize_lda(self, topic_num):
         """Check the optimized lda scores """
-        pt = ProcessText('annotations/combined_text.csv')
+
+        pt = ProcessText('/anno_test/combined_text_test.csv')
         cleaned_text = pt.simple_preprocess()
         entities = pt.extract_entities(cleaned_text)
         
         # get the optimized parameter 
-        sent_topics_df = selected_best_LDA(pt.path_result, entities, 10, 'lda_test.csv')
+        sent_topics_df = selected_best_LDA(pt.path_result, entities, topic_num, 'lda_test.csv')
 
 
     def merge_features(self)-> pd.DataFrame:
@@ -194,13 +207,21 @@ class PrepareData:
         
         # get liwc
         liwc = self.get_liwc()
+        
+        # clean text data
+        liwc = liwc.drop_duplicates(subset='post_id', keep='first', inplace=False)
+        liwc = liwc[~liwc['text'].isin(['[removed]'])]
+        liwc = liwc[~liwc['text'].isin(['[deleted]'])]
+        liwc = liwc.dropna(subset=['text']) #5234 rows
+        # combine text and title
+        liwc['text'] = liwc['text'].str.cat(liwc['title'], sep=" ")
 
-        # get readability
+        # # get readability
         text_dict = self.convert_text_dict(liwc)
         readability_score = self.get_readability(text_dict)
         readability_df = self.convert_dict_df(readability_score, 'FleschReadingEase')    
 
-        # get sentiment
+        # # get sentiment
         neg = self.get_sentiment(text_dict, 'neg')
         neg_df = self.convert_dict_df(neg, 'neg')
         pos = self.get_sentiment(text_dict, 'pos')
@@ -210,7 +231,7 @@ class PrepareData:
         senti = neg_df.merge(pos_df, on='post_id')
         #senti = senti.merge(neu_df, on='post_id')
 
-        # add feature tag
+        # # add feature tag
         senti.columns = [str(col) + '_senti' for col in senti.columns]
         senti = senti.rename(columns={"post_id_senti": "post_id"})
 
@@ -222,36 +243,54 @@ class PrepareData:
         lda = lda.rename(columns={"post_id_lda": "post_id"})
 
 
-        # merge all features
+        # # merge all features
         all_fea = liwc.merge(readability_df, on='post_id')
         all_fea = all_fea.merge(senti, on='post_id')
         all_fea = all_fea.merge(lda, on='post_id')
 
-        # get labels
-        labels = self.file[[self.labelcol, 'post_id']]
-        all_data = all_fea.merge(labels, on='post_id')
+        # merge with annotation labels
+        all_anno = pd.read_csv(self.path + 'all_data_text.csv') # annotated data
+        all_anno = all_anno[['post_id', 'anxiety', 'financial_career', 'quar_social', 'health_infected', 'break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future']]
         
-        return all_data
+        ## merge annotated data with all data
+        all_files_pd = pd.merge(all_fea, all_anno, on='post_id', how='outer')
+
+        # recode anxiety level
+        all_files_pd['anxiety'] = all_files_pd['anxiety'].replace(0, 1)
+
+
+        # # get labels
+        # labels = self.file[[self.labelcol, 'post_id']]
+        # all_data = all_fea.merge(labels, on='post_id')
+        
+        return all_files_pd
 
 
     def pre_train(self)-> pd.DataFrame:
         """Merge data, get X, y and recode y."""
 
         all_data = self.merge_features()
-        X = all_data.drop(columns=[self.labelcol])
-        y = all_data[[self.labelcol]]
-        return X, y
+        all_data2 = all_data.dropna(subset=['anxiety'])
+        prediction_sample = all_data.loc[all_data['anxiety'].isna()]
+        prediction_sample = prediction_sample.drop(columns=[self.labelcol])
+
+
+        X = all_data2.drop(columns=[self.labelcol])
+        y = all_data2[[self.labelcol]]
+        return X, y, prediction_sample
 
     def get_train_test_split(self) -> pd.DataFrame:
         '''split 10% holdout set, then split train test with the rest 90%, stratify splitting'''
 
-        X, y = self.pre_train()
+        X, y, prediction_sample = self.pre_train()
         # get 10% holdout set for testing
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state = 300, stratify = y)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state = 300, stratify = y)
 
-        return X_train, X_test, y_train, y_test
+        return X_train, X_test, y_train, y_test, prediction_sample
+
+    def get_test_data(self):
+        """Merge data, get X, y and recode y."""
         
-
 
 
 
@@ -279,7 +318,7 @@ class ColumnSelector:
 
 class TrainingClassifiers: 
     
-    def __init__(self, X_train, X_test, y_train, y_test, parameters, features_list, tfidf_words):
+    def __init__(self, X_train, X_test, y_train, y_test, parameters, features_list, tfidf_words, label, prediction_sample = None):
         self.X_train = X_train
         self.y_train = y_train
         self.X_test = X_test
@@ -288,6 +327,10 @@ class TrainingClassifiers:
         self.features_list = features_list
         self.tfidf_words = tfidf_words 
         self.path = '/disk/data/share/s1690903/pandemic_anxiety/'
+        self.label = label
+        if prediction_sample is not None:
+           self.prediction_sample = prediction_sample
+
 
 
     def get_other_feature_names(self):
@@ -365,6 +408,12 @@ class TrainingClassifiers:
         print('prediction...')
       
         y_true, y_pred = self.y_test, grid_search.predict(self.X_test)
+
+        # predict sample
+        prediction_sample = self.prediction_sample
+        print('predict sample')
+        prediction_sample['prediction_{}'.format(self.label)] = grid_search.predict(self.prediction_sample)
+
         report = classification_report(y_true, y_pred, digits=3)
         #store prediction result
         y_pred_series = pd.DataFrame(y_pred)
@@ -372,6 +421,7 @@ class TrainingClassifiers:
         result.columns = ['y_true', 'y_pred']
        
         result.to_csv(self.path + 'results/best_result_{}.csv'.format(self.features_list) )
+        prediction_sample.to_csv(self.path + 'results/prediction_sample_{}.csv'.format(self.label))
     
         return report, grid_search, pipeline
    
@@ -390,37 +440,30 @@ def loop_the_grid(label): #label column for prediction
         f.close()
     
     read = Read_raw_data()
-    all_files = read.read_all_files()
-    # you can combine columns here
-    #all_files = read.combine_columns('finance', 'financial_career', 'health_work')
-    #all_files = read.combine_columns('health', 'health_infected', 'health_prev', 'death')
-
-    # define how do you want to cimbine the predicted var
-    #all_files = read.combine_columns('social', 'quarantine', 'socializing')
-
+    #all_files = read.read_all_files()
 
     for classifier in experiment['experiment']:
 
         # prepare environment
-        prepare = PrepareData(all_files, label)
+        prepare = PrepareData('COVID19_support.csv', label)
         prepare.save_combined_text()
 
         # split data
-        X_train, X_test, y_train, y_test = prepare.get_train_test_split()
-        X_train.to_csv(path + 'train_feature.csv')
-        X_test.to_csv(path + 'test_feature.csv')
+        X_train, X_test, y_train, y_test, prediction_sample = prepare.get_train_test_split()
+        #X_train.to_csv(path + 'train_feature.csv')
+        #X_test.to_csv(path + 'test_feature.csv')
         X_train = X_train.drop(columns=['post_id'])
         X_test = X_test.drop(columns=['post_id'])
         for feature_set, features_list in experiment['features'].items():# loop feature sets
             for tfidf_words in experiment['tfidf_features']['max_fea']:# loop tfidf features
                 
 
-                f = open(path + 'results/classifier/test_result.csv', 'a')
+                f = open(path + 'results/classifier/test_result2.csv', 'a')
                 writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
 
                 parameters = experiment['experiment'][classifier]
                 print('parameters are:', parameters)
-                training = TrainingClassifiers(X_train=X_train, y_train=y_train, X_test=X_test, y_test =y_test, parameters =parameters, features_list =features_list, tfidf_words=tfidf_words)
+                training = TrainingClassifiers(X_train=X_train, y_train=y_train, X_test=X_test, y_test =y_test, parameters =parameters, features_list =features_list, tfidf_words=tfidf_words, prediction_sample=prediction_sample, label=label)
                 
                 report, grid_search, pipeline = training.test_model(classifier)
 
@@ -432,20 +475,26 @@ def loop_the_grid(label): #label column for prediction
                 gc.collect()
 
 # run lda                   
-# read = Read_raw_data()
-# all_files = read.read_all_files()
-# p = PrepareData(all_files, 'anxiety')
-# p.optimize_lda()
-# all_data = p.merge_features() 
+#read = Read_raw_data()
+#all_file_df = read.read_all_files()
+p = PrepareData('COVID19_support.csv', 'anxiety')
+# p.save_combined_text()
+
+# for i in [15, 20, 25, 30]:
+#     p.optimize_lda(i)
+
+#all_data = p.merge_features() 
+#X_train, X_test, y_train, y_test, prediction_sample = p.get_train_test_split()
 
 
-loop_the_grid('mental_health') # input which one you want to predict
-#'focus', 'financial_career', 'information_gen',  'socializing' , 'infomation_sharing_private', 'health_infected', 'health_work', 'mental_health', 'rant', 'death', 'mourn_death', 'travelling',
-# list_of_var = ['future']
+# X_train = X_train.drop(columns=['post_id'])
+# X_test = X_test.drop(columns=['post_id'])
+var_list = ['anxiety', 'financial_career', 'quar_social', 'health_infected', 'break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future']
 
-# for col in list_of_var:
-#     
+for var in var_list:
+    loop_the_grid(var)# input which one you want to predict
 
+#loop_the_grid('death')
 
 
 

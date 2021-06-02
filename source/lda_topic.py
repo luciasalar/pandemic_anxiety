@@ -29,6 +29,7 @@ from ruamel import yaml
 import contractions
 from gensim.sklearn_api import LdaTransformer
 import lda
+from nltk.corpus import stopwords
 
 # -*- encoding: utf-8 -*-
 
@@ -45,8 +46,9 @@ class ProcessText:
         self.path_data = '/disk/data/share/s1690903/pandemic_anxiety/data/'
         self.data = pd.read_csv(self.path_data + filename)
         self.path_result = '/disk/data/share/s1690903/pandemic_anxiety/results/lda_results/'
+      
 
-    def __processed_data(self):
+    def processed_data(self):
         """Remove duplicates and deleted posts and nan"""
         data = self.data.drop_duplicates(subset='post_id', keep='first', inplace=False)
         data = data[~data['text'].isin(['[removed]'])]
@@ -55,13 +57,24 @@ class ProcessText:
         data = data[~data['text'].str.lower().isin(['removed'])]
         data['text'].replace('', np.nan, inplace=True)
         data = data.dropna(subset=['text'])
-        return data
+        
+
+        #only select data from 2019 and 2020
+  
+        data['time'] = pd.to_datetime(data['time'], format='%m/%d/%Y/%H:%M:%S').dt.date
+        startdate = pd.to_datetime("2019-1-1").date()
+        enddate = pd.to_datetime("2021-4-28").date()
+        data2 = data.loc[data['time'].between(startdate, enddate, inclusive=False)]
+
+        #data2 = data2.iloc[0:1000, ]
+
+        return data2
 
 
     def data_dict(self):
-        """Convert df to dictionary. """ 
+        """Convert df to dictionary. """
 
-        data = self.__processed_data()
+        data = self.processed_data()
         mydict = lambda: defaultdict(mydict)
         data_dict = mydict()
 
@@ -80,11 +93,12 @@ class ProcessText:
 
         data_dict = self.data_dict()
         mydict = lambda: defaultdict(mydict)
+        words = set(nltk.corpus.words.words())
         cleaned = mydict()
         #count = 0
         for k, v in data_dict.items():
             sent = v['text']
-            # url
+            #url
             sent = re.sub(r'http\S+', '', sent)
             #sent = re.sub(r'^https?:\/\/.*[\r\n]*', '', sent, flags=re.MULTILINE)
             #remove contractions
@@ -95,12 +109,20 @@ class ProcessText:
             sent = str(sent).replace('\u200d', ' ')
             # lower case and remove punctuation
             sent = str(sent).lower().translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation)))
+
+            # remove non-English words
+            sent = " ".join(w for w in nltk.wordpunct_tokenize(str(sent)) \
+        if w.lower() in words or not w.isalpha())
+
             if len(sent.split()) > 2:
                 cleaned[k]['text'] = sent
 
             if v['time'] is not None:
                 cleaned[k]['time'] = v['time']
                 #print(cleaned[k]['time'])
+
+           
+            cleaned[k]['lyrics'] = sent
             # count = count + 1
             # if count == 1000:
             #     break
@@ -138,7 +160,8 @@ class ProcessText:
         target_time = mydict()
 
         for k, v in simple_prepro_text.items():
-            time = datetime.strptime(v['time'], '%m/%d/%Y/%H:%M:%S').date()
+            #time = datetime.strptime(v['time'], '%m/%d/%Y').date()
+            time = v['time']
             start_day = datetime.strptime(start, '%m/%d/%Y').date()
             end_day = datetime.strptime(end, '%m/%d/%Y').date()
 
@@ -277,7 +300,7 @@ def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname
         alpha = [0.1, 0.3, 0.5, 0.7, 0.9]
         beta = [0.1, 0.3, 0.5, 0.7, 0.9]
 
-        # alpha = [0.3]
+        # alpha = [0.1]
         # beta = [0.9]
 
         mydict = lambda: defaultdict(mydict)
@@ -295,6 +318,7 @@ def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname
         sort = sorted(cohere_dict.keys())[0] 
         a = cohere_dict[sort]['a']
         b = cohere_dict[sort]['b']
+
         
         # run LDA with the optimized values
         lda = LDATopic(text, num_topic, a, b)
@@ -302,7 +326,14 @@ def selected_best_LDA(path, text: typing.Dict[str, str], num_topic:int, domTname
         #pprint(model.print_topics())
 
         #f = open(path + 'result/lda_result.csv', 'a')
-        result_row = [[a, b, coherence, str(datetime.now()), model.print_topics(), num_topic]]
+        topic_w = []
+        for idx, topic in model.show_topics(num_topics=100, formatted=False, num_words= 10):
+            topic_w_result = tuple([idx, [w[0] for w in topic]])
+            topic_w.append(topic_w_result)
+            #print('Topic: {} \nWords: {}'.format(idx, [w[0] for w in topic]))
+        
+        result_row = [[a, b, coherence, str(datetime.now()), topic_w, num_topic]]
+
         writer_top.writerows(result_row)
 
         f.close()
@@ -394,19 +425,21 @@ def get_topic_covid_timeline(subreddit, year: int, num_topic: int) -> pd.DataFra
     """get topics according to season timeline 
     result saved in results/lda_results/
     """
-    pt = ProcessText('posts/{}_postids_posts.csv'.format(subreddit))
+    #pt = ProcessText('posts/{}_postids_posts_new.csv'.format(subreddit))
+    # get all subreddit data 
+    
     cleaned_text = pt.simple_preprocess()
 
-    # here we can set the seasons
-    precovid = pt.split_timeline(cleaned_text, '1/1/{}'.format(year), '12/31/{}'.format(year))
-    precovid2 = pt.split_timeline(cleaned_text, '1/1/{}'.format(year - 1), '12/31/{}'.format(year-1))
-    covid = pt.split_timeline(cleaned_text, '2/1/2020', '8/30/2020')
+    # here we can set the timeline
+    precovid = pt.split_timeline(cleaned_text, '1/1/2017', '12/31/{}'.format(year))
+    #precovid2 = pt.split_timeline(cleaned_text, '1/1/{}'.format(year - 1), '12/31/{}'.format(year-1))
+    covid = pt.split_timeline(cleaned_text, '1/1/2020', '8/30/2020')
     precovid.update(precovid2)
  
    #run lda for each period
     if len(precovid) > 1:
         entities = pt.extract_entities(precovid)
-        sent_topics_precovid = selected_best_LDA(pt.path_result, entities, num_topic, 'precovid_{}_{}'.format(year, year-1), subreddit)
+        sent_topics_precovid = selected_best_LDA(pt.path_result, entities, num_topic, 'precovid_{}_{}'.format(year, 2017), subreddit)
         dt_num_precovid, topic_kw_precovid = get_dominant_topic(sent_topics_precovid)
     else:
         dt_num_precovid = None
@@ -466,18 +499,71 @@ def get_topic_month_timeline(subreddit, year: int, num_topic: int) -> pd.DataFra
     writer_top.writerows(result_row)
     f.close()
 
+def run_lda_on_all():
+    pt = ProcessText('all_sub_posts.csv')
+     
+    
+    # concatenate all the subreddit files
+    cleaned_text = pt.simple_preprocess()
+
+    entities = pt.extract_entities(cleaned_text)
+
+    topic = [100]
+    for num_topic in topic:
+        sent_topics_all = selected_best_LDA(pt.path_result, entities, num_topic,'lda_all_data_test.csv')
 
 
-if __name__ == "__main__":
 
-    #get_topic_season('Anxiety', 2020, 10) #year, xnum_topiclda_
-#again, we can totally loop through a list of subreddit names
-    evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
-    evn = load_experiment(evn_path + 'experiment.yaml')
-    subreddits = evn['subreddits']['subs']
-    for sub in subreddits:
-        #covidApr, covidMay = get_topic_month_timeline(sub, 2020, 15) #year, num_topic
-        get_topic_covid_timeline(sub, 2019, 15)
+evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
+evn = load_experiment(evn_path + 'experiment.yaml')
+
+
+#run_lda_on_all()
+
+# merge all data
+# path = '/disk/data/share/s1690903/pandemic_anxiety/data/posts/'
+# an = pd.read_csv(path + 'Anxiety_postids_posts.csv')
+# ha = pd.read_csv(path + 'HealthAnxiety_postids_posts.csv')
+# covid = pd.read_csv(path + 'COVID19_support_postids_posts.csv')
+# ocd  = pd.read_csv(path + 'OCD_postids_posts.csv')
+# ah = pd.read_csv(path + 'Anxietyhelp_postids_posts.csv')
+# ad = pd.read_csv(path + 'AnxietyDepression_postids_posts.csv')
+# sd = pd.read_csv(path + 'SocialAnxiety_postids_posts.csv')
+
+# all_df = an.append(ha)
+# all_df = all_df.append(ha)
+# all_df = all_df.append(covid)
+# all_df = all_df.append(ocd)
+# all_df = all_df.append(ah)
+# all_df = all_df.append(ad)
+# all_df = all_df.append(sd)
+
+# all_df.to_csv(path + 'all_sub_posts.csv')
+
+#dt_num_precovid, topic_kw_precovid = get_dominant_topic(sent_topics_all)
+
+# pt = ProcessText('all_sub_posts.csv')
+# v = pt.processed_data()
+# v.to_csv(pt.path_data + 'temp.csv')
+
+# concatenate all the subreddit files
+# cleaned_text = pt.simple_preprocess()
+# selected = pt.split_timeline(cleaned_text, '1/1/2019', '12/31/2020')
+# #entities = pt.extract_entities(selected)
+
+# sent_topics_all = selected_best_LDA(pt.path_result, entities, 2,'lda_all_data_test.csv')
+
+
+# if __name__ == "__main__":
+
+#     #get_topic_season('Anxiety', 2020, 10) #year, xnum_topiclda_
+# #again, we can totally loop through a list of subreddit names
+#     evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
+#     evn = load_experiment(evn_path + 'experiment.yaml')
+#     subreddits = evn['subreddits']['subs']
+#     for sub in subreddits:
+#         #covidApr, covidMay = get_topic_month_timeline(sub, 2020, 15) #year, num_topic
+#         get_topic_covid_timeline(sub, 2019, 15)
 
 
     # evn_path = '/disk/data/share/s1690903/pandemic_anxiety/evn/'
