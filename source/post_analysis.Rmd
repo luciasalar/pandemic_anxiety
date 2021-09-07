@@ -1,0 +1,751 @@
+---
+title: "Post Analysis"
+author: "lushi"
+date: "23/09/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(xtable)
+library(Hmisc)
+library(RcmdrMisc)
+library(stargazer)
+library(fastDummies)
+library(lubridate)
+library(zoo)
+#devtools::install_github("cardiomoon/ggiraphExtra")
+require(moonBook)
+require(ggiraphExtra)
+require(anytime)
+require(tidyr)
+library("gridExtra")
+library("tseries")
+library("aTSA")
+library("pracma")
+
+```
+
+
+```{r readanno}
+path = '/Users/lucia/hawksworth/pandemic_anxiety/data/posts/'
+#path = "/home/lucia/Documents/lucia/pandemic_anxiety/data/posts/"
+setwd(path)
+
+covid <- read.csv('COVID19_support_postids_posts.csv',  stringsAsFactors = FALSE)
+cle <-  covid[!duplicated(covid$post_id), ]
+
+```
+
+## get annotationn
+Merge all the annotation data
+```{r readanno}
+path = '/Users/lucia/hawksworth/pandemic_anxiety/data/anno_test/data'
+#path = "/home/lucia/Documents/lucia/pandemic_anxiety/data/anno_test/data/"
+setwd(path)
+#this is the path for the final annotation data 
+read_all_files <- function(){
+  all_files_df <- dir(pattern = "*.csv")
+  list_of_frames <- lapply(all_files_df, read.csv)
+  all <- do.call("rbind", list_of_frames)
+  clean <-  all[!duplicated(all$post_id), ]
+  return (clean)
+
+}
+anno_file <- read_all_files()
+anno_file$text <- NULL
+anno_file$title <- NULL
+
+
+```
+
+# merge the missing annotations with mine 
+```{r readanno}
+path = '/Users/lucia/hawksworth/pandemic_anxiety/data/anno_test/lucia/'
+#path = "/home/lucia/Documents/lucia/pandemic_anxiety/data/anno_test/lucia/"
+setwd(path)
+
+aug <- read.csv('lucia_aug.csv')
+sept <- read.csv('lucia_sept.csv')
+lucia <- rbind(aug, sept)
+#lucia
+
+anno_file2 <- merge(anno_file,lucia, by='post_id', all.y = TRUE)
+anno_file2[is.na(anno_file2 )] <- 0
+
+write.csv(anno_file2, 'remain_data.csv')
+write.csv(anno_file, 'all_data.csv')
+
+## merge other variables with annotation
+
+```
+
+```{r readall}
+path = '/Users/lucia/hawksworth/pandemic_anxiety/data/anno_test/'
+#path = "/home/lucia/Documents/lucia/pandemic_anxiety/data/anno_test/"
+setwd(path)
+
+anno_file <- read.csv('all_data_final.csv')
+anno_file <-  anno_file[!duplicated(anno_file$post_id), ]
+```
+
+
+```{r readall}
+
+#clean  <- read_all_files()
+annotation <- merge(anno_file, cle, all.x= TRUE, by = 'post_id')
+#Link health infected with Break_guideline and health_work
+annotation$health_infected <- ifelse(annotation$break_guideline == 1, 1, annotation$health_infected)
+
+annotation$health_infected <- ifelse(annotation$health_work == 1, 1, annotation$health_infected)
+
+```
+
+# select timeline and get monthly percentage
+
+```{r timeline}
+annotation$date<- as.Date(annotation$time, format = "%m/%d/%Y/%H:%M:%S")
+mar <- annotation[annotation$date > '2020-02-1' & annotation$date < '2020-03-31' ,]
+apr <- annotation[annotation$date > '2020-04-1' & annotation$date < '2020-04-30' ,]
+may <- annotation[annotation$date > '2020-05-1' & annotation$date < '2020-05-31' ,]
+jun <- annotation[annotation$date > '2020-06-1' & annotation$date < '2020-06-30' ,]
+july <- annotation[annotation$date > '2020-07-1' & annotation$date < '2020-07-31' ,]
+aug <- annotation[annotation$date > '2020-08-1' & annotation$date < '2020-08-31' ,]
+sept <- annotation[annotation$date > '2020-09-1' & annotation$date < '2020-09-30' ,]
+oct <- annotation[annotation$date > '2020-10-1' & annotation$date < '2020-10-31' ,]
+
+#apply(mar[,2:17], 2, table)
+
+monthly_val <- function(var){
+  result = vector(mode = "numeric")
+  month <- c("mar", "apr", "may" ,"jun","july", "aug", "sept", "oct")
+  for (i in month){
+    if (i== 'mar'){
+      i <- assign(i, mar)
+    }
+     else if (i== 'apr'){
+      i <- assign(i, apr)
+     }
+    else if (i== 'may'){
+      i <- assign(i, may)
+    }
+    else if (i== 'jun'){
+      i <- assign(i, jun)
+    }
+    else if (i== 'july'){
+      i <- assign(i, july)
+    }
+    
+    else if (i== 'aug'){
+      i <- assign(i, aug)
+    }
+    
+    else if (i== 'sept'){
+      i <- assign(i, sept)
+    }
+    
+    else if (i== 'oct'){
+      i <- assign(i, oct)
+    }
+    t_mar <- table(i[,c(var)])
+    
+    # some categories has zero 1
+    if (length(t_mar) > 1){
+    val <- t_mar[[2]]/nrow(i)
+    result <-append(result, val)
+    } else{
+      result <-append(result, 0)
+      
+    }
+    
+    
+  }
+  result_df <- as.data.frame(matrix(result, ncol=1, byrow = T))
+  result_df$month <- c(3, 4, 5, 6, 7, 8, 9, 10)
+  colnames(result_df) <- c('doc_per', 'month')
+  result_df$varname <- var
+ return (result_df)
+}
+
+
+finance <- monthly_val('financial_career')
+quar_social <- monthly_val('quar_social')
+health_infected <- monthly_val('health_infected')
+break_guideline <- monthly_val('break_guideline')
+health_work <- monthly_val('health_work')
+mental <- monthly_val('mental_health')
+death <- monthly_val('death')
+traveling <- monthly_val('travelling')
+future <- monthly_val('future')
+
+
+all_data <- bind_rows(
+  finance, quar_social, health_infected, break_guideline, health_work, mental, death, traveling, future)
+```
+
+
+#plot monthly percentage, line plot
+```{r plots}
+ggplot(all_data, aes(month)) + 
+  geom_line(aes(y = doc_per, colour = varname), size= 1) +
+   scale_color_brewer(palette="Set1")+ 
+  theme(text = element_text(size=20)) + theme(legend.position="bottom", legend.box = "horizontal")
+
+
+```
+
+
+#plot monthly percentage
+```{r plots}
+plot_anxiety_content <- function(df, title){ 
+  ggplot(df, aes(x=month, y=doc_per)) + 
+  geom_bar(stat = "identity",  fill = "steelblue") +
+  ggtitle(title)
+}
+
+fa <- plot_anxiety_content(finance, "Finance")
+qua <- plot_anxiety_content(quar_social, 'Quaratine')
+infect <- plot_anxiety_content(health_infected, 'Infect')
+break_g <- plot_anxiety_content(break_guideline, 'Break Guideline')
+work <- plot_anxiety_content(health_work, 'Work Risks')
+death <- plot_anxiety_content(death, 'Death')
+#travel <- plot_anxiety_content(traveling, 'Traveling')
+mental <- plot_anxiety_content(mental, 'Mental Health')
+future <- plot_anxiety_content(future, 'Future')
+
+gridExtra::grid.arrange(fa, qua, infect, break_g, work, death, mental, future, nrow = 2) 
+```
+
+#subject of worry correlation
+
+
+
+```{r corstars}
+corstars <-function(x, method=c("pearson", "spearman"), removeTriangle=c("upper", "lower"),
+                     result=c("none", "html", "latex")){
+    #Compute correlation matrix
+    require(Hmisc)
+    x <- as.matrix(x)
+    correlation_matrix_adj<-rcorr.adjust(x, type=method[1])
+    correlation_matrix<-rcorr(x, type=method[1])
+    R <- correlation_matrix$r # Matrix of correlation coeficients
+    p1 <- correlation_matrix_adj$R[3][1]
+    p <- p1$P# Matrix of p-value 
+    
+    ## Define notions for significance levels; spacing is important.
+    mystars <- ifelse(p < .0001, "****", ifelse(p < .001, "*** ", ifelse(p < .01, "**  ", ifelse(p < .05, "*   ", "    "))))
+    
+    
+    
+    ## trunctuate the correlation matrix to two decimal
+    R <- format(round(cbind(rep(-1.11, ncol(x)), R), 2))[,-1]
+    
+    ## build a new matrix that includes the correlations with their apropriate stars
+    Rnew <- matrix(paste(R, mystars, sep=""), ncol=ncol(x))
+    diag(Rnew) <- paste(diag(R), " ", sep="")
+    rownames(Rnew) <- colnames(x)
+    colnames(Rnew) <- paste(colnames(x), "", sep="")
+    
+    ## remove upper triangle of correlation matrix
+    if(removeTriangle[1]=="upper"){
+      Rnew <- as.matrix(Rnew)
+      Rnew[upper.tri(Rnew, diag = TRUE)] <- ""
+      Rnew <- as.data.frame(Rnew)
+    }
+    
+    ## remove lower triangle of correlation matrix
+    else if(removeTriangle[1]=="lower"){
+      Rnew <- as.matrix(Rnew)
+      Rnew[lower.tri(Rnew, diag = TRUE)] <- ""
+      Rnew <- as.data.frame(Rnew)
+    }
+    
+    ## remove last column and return the correlation matrix
+    Rnew <- cbind(Rnew[1:length(Rnew)-1])
+    if (result[1]=="none") return(Rnew)
+    else{
+      if(result[1]=="html") print(xtable(Rnew), type="html")
+      else print(xtable(Rnew), type="latex") 
+    }
+} 
+
+```
+
+
+
+# get correlation table
+```{r worry}
+cor_var<- annotation[,2:16]
+cor_var$info_sharing <- NULL
+cor_var$info_sharing_personal <- NULL
+cor_var$rant <- NULL
+cor_var$other <- NULL
+cor_var$mourn_death <- NULL
+#cor_var[cor_var$mental_health == 'z']
+cor_var$mental_health<- as.numeric(cor_var$mental_health)
+cor_var <- cor_var[!is.na(cor_var$mental_health), ]
+
+mcor <- corstars(cor_var, "pearson")
+
+
+upper<-mcor
+upper[upper.tri(mcor)]<-""
+upper<-as.data.frame(upper)
+upper
+xtable(upper)
+```
+
+
+# get adjusted p values
+```{r corstars}
+cor_var <- as.matrix(cor_var)
+correlation_matrix <- rcorr.adjust(cor_var, "spearman")
+p <- correlation_matrix$P
+
+```
+
+
+# regression on anxiety
+```{r worry}
+annotation1 <- annotation
+annotation1$anxiety[annotation1$anxiety == 0] <- 1
+
+fit <- glm(anxiety ~ financial_career + quar_social + health_infected + break_guideline + health_work +mental_health + death + travelling + future
+                  , data=annotation1)  # build linear regression model on full data
+summary(fit)
+stargazer(fit)
+
+```
+
+# plot regression 
+```{r worry plot}
+
+ggPredict(fit1,se=TRUE,interactive=TRUE,digits=3)
+```
+
+
+
+# language intensity plot
+
+```{r worry plot}
+
+anxiety <- annotation[ ,c('anxiety', 'date')]
+dum <- fastDummies::dummy_cols(anxiety$anxiety)
+colnames(dum) <- c('orginal','none','low','high')
+dum$date <- anxiety$date
+
+mar <- dum[dum$date > '2020-02-1' & dum$date < '2020-03-31' ,]
+apr <- dum[dum$date  > '2020-04-1' & dum$date  < '2020-04-30' ,]
+may <- dum[dum$date  > '2020-05-1' & dum$date  < '2020-05-31' ,]
+jun <- dum[dum$date  > '2020-06-1' & dum$date  < '2020-06-30' ,]
+july <- dum[dum$date > '2020-07-1' & dum$date < '2020-07-31' ,]
+aug <- dum[dum$date > '2020-08-1' & dum$date < '2020-08-31' ,]
+sept <- dum[dum$date > '2020-09-1' & dum$date < '2020-09-30' ,]
+oct <- dum[dum$date > '2020-10-1' & dum$date < '2020-10-31' ,]
+
+none <- monthly_val('none')
+low <- monthly_val('low')
+high <- monthly_val('high')
+
+
+all_ans<- bind_rows(
+  none, low, high)
+
+ggplot(all_ans, aes(month)) + 
+  geom_line(aes(y = doc_per, colour = varname), size= 2) +
+   scale_color_brewer(palette="Set1")+ 
+  theme(text = element_text(size=20)) +
+  theme(legend.position="bottom", legend.box = "horizontal")
+
+
+
+```
+
+
+
+# anxiety level
+Here we compute anxiety = number of subjects of worry * language intensity
+
+```{r anxiety plot}
+
+annotation$anxiety[annotation$anxiety == 0] <- 1
+#annotation$anxiety <- annotation$anxiety+1
+annotation$anxiety_level <- rowSums(annotation[,3:16] > 0) * annotation$anxiety
+
+
+annotation$date <- as.Date(annotation$date)
+annotation %>% dplyr::group_by(month=floor_date(date, "week")) %>%
+  dplyr::summarize(amount=mean(anxiety_level)) -> grouped
+
+grouped <- grouped[complete.cases(grouped), ]
+
+ggplot(grouped, aes(x=month, y=amount)) +
+  geom_line(aes(y = amount), size= 2) + 
+  theme(text = element_text(size=20)) +
+  ylab("anxiety level")
+
+```
+
+
+#anxiety level of predicted labels
+```{r anxiety plot}
+path = '/Users/lucia/hawksworth/pandemic_anxiety/results/prediction_result_2500/'
+#path = "/home/lucia/Documents/lucia/pandemic_anxiety/results/prediction_result_2500/"
+setwd(path)
+annotation_pred <- read.csv('all_prediction_results.csv')
+#annotation_pred$anxiety <- annotation_pred$prediction_anxiety+1
+annotation_pred$anxiety_level <- rowSums(annotation[,3:11] > 0) * annotation_pred$prediction_anxiety
+
+# merge with time 
+time <- cle[,c('post_id', 'time')]
+anno_pre <- merge(time, annotation_pred, by = 'post_id', all.y = TRUE)
+anno_pre <- anno_pre[complete.cases(anno_pre), ]
+
+
+
+anno_pre$date <- anydate(anno_pre$time)
+anno_pre <- anno_pre[anno_pre$date > '2020-03-1', ]
+anno_pre %>% dplyr::group_by(month=floor_date(date, "week")) %>%
+  dplyr::summarize(amount=mean(anxiety_level)) -> grouped2
+
+grouped2 <- grouped2[complete.cases(grouped2), ]
+
+
+#plot human and annotated
+grouped2$label <- "machine"
+grouped$label <- 'human'
+anxiety_level <- rbind(grouped2, grouped)
+
+
+# check stationary
+kpss.test(grouped2$amount) #non stationary
+kpss.test(grouped$amount)#non stationary
+
+grouped3 <- grouped2[grouped2$amount < '2020-11-1', ]
+
+#detrend
+grouped3$value_d <- detrend(grouped3$amount, tt = 'linear', bp = c())
+grouped$value_d <- detrend(grouped$amount, tt = 'linear', bp = c())
+
+
+# check correlation
+ts_cor <- ccf(as.numeric(grouped3$value_d), as.numeric(grouped$value_d), type="correlation")
+
+# check periodicity 
+
+ptestg(grouped2$amount,method = "Fisher")
+
+ggplot(grouped2, aes(x=month, y=amount)) +
+  geom_line(aes(y = amount), size= 2) + 
+  theme(text = element_text(size=20)) +
+  ylab("anxiety level")
+
+
+ggplot(anxiety_level, aes(month)) + 
+  geom_line(aes(y = amount, colour = label), size= 1) +
+   scale_color_brewer(palette="Set1")+ 
+  xlab("") + ylab("value") +
+  theme(text = element_text(size=20)) + theme(legend.position="bottom", legend.box = "horizontal")
+
+
+
+```
+
+
+#plot monthly percentage, line plot
+```{r plots}
+anno_pre %>% dplyr::group_by(month=floor_date(date, "month")) %>%
+  dplyr::summarize(finance=mean(prediction_financial_career), quar=mean(prediction_quar_social), infected=mean(prediction_health_infected), guideline=mean(prediction_break_guideline), work=mean(prediction_health_work), mental=mean(prediction_mental_health), death=mean(prediction_death), travel=mean(prediction_travelling), future=mean(prediction_future)) -> grouped_var
+
+grouped_var %>%  unite('value', 2:10, remove = FALSE) -> grouped_var2
+
+df.long <- gather(grouped_var, varname, value, -month)
+
+
+ggplot(df.long, aes(month)) + 
+  geom_line(aes(y = value, colour = varname), size= 1) +
+  # scale_color_brewer(palette="Set1")+ 
+  scale_color_manual(values=c("#4DAF4A", "#F786BF", "#FF7F00", "#E41A1C", "#FFD700", "#A65628","#377EB8", "#696969", "#984EA3")) +
+  theme(text = element_text(size=20)) + theme(legend.position="bottom", legend.box = "horizontal")
+
+#green #4DAF4A,  "#A65628"brown, "#377EB8" blue, "#984EA3" purple, "#FF7F00 orange", "#FFFF33 yellow", "#E41A1C red", ,"#F781BF", "#F786BF"
+
+
+
+anno_pre %>% dplyr::group_by(month=floor_date(date, "month")) %>%
+  dplyr::summarize(finance=mean(prediction_financial_career), restrict=mean(prediction_quar_social), health=mean(prediction_health_infected), guideline=mean(prediction_break_guideline), work=mean(prediction_health_work), mental=mean(prediction_mental_health), death=mean(prediction_death), travel=mean(prediction_travelling),future=mean(prediction_future)) -> grouped_week
+
+df.long.week <- gather(grouped_week, varname, value, -month)
+
+ggplot(df.long.week, aes(month)) + 
+  geom_line(aes(y = value, colour = varname), size= 1) +
+   scale_x_date(date_labels="%b %Y",date_breaks  ="1 month") + 
+  # scale_color_brewer(palette="Set1")+ 
+  scale_color_manual(values=c("#4DAF4A", "#F786BF", "#FF7F00", "#E41A1C", "#FFD700", "#A65628","#377EB8", "#696969", "#984EA3")) + 
+  theme_bw() +
+  #theme(text = element_text(size=20)) + theme(legend.position="bottom", legend.box = "horizontal")+
+ theme(axis.text.x = element_text(angle = 60, vjust = 0.5), axis.title.x = element_blank())
+
+   
+
+
+
+```
+
+
+
+
+
+time series cross correlation
+```{r plots}
+
+
+machine <- grouped2[grouped2$month < '2020-11-1', ]
+human <- grouped
+ccf(machine$amount, human$amount, type="correlation")
+
+machine <- grouped2[grouped2$month < '2020-11-1', ]
+human <- grouped
+
+#compare SOW graph
+ts_correlation <- function(machine_var, human_var) {
+    machine <- df.long[df.long$varname == machine_var,]
+    kpt <- kpss.test(machine$value)
+    
+    machine <- machine[machine$month < '2020-11-1', ]
+    
+    human <- all_data[all_data$varname == human_var,]
+    human <- human[order(human$month),]
+    
+    #detrend
+    machine$value_d <- detrend(machine$value, tt = 'linear', bp = c())
+    human$value_d <- detrend(human$doc_per, tt = 'linear', bp = c())
+    
+    ts_cor <- ccf(as.numeric(machine$value_d), as.numeric(human$value_d), type="correlation")
+    
+    return (ts_cor)
+    return (ccf(as.numeric(machine$value_d), as.numeric(human$value_d), type="correlation"))
+}
+
+#significantly positively correlated in x lags
+ts_correlation('infected', 'health_infected') # one
+ts_correlation('finance', 'financial_career') #
+ts_correlation('quar', 'quar_social') # 
+ts_correlation('guideline', 'break_guideline') #one
+ts_correlation('work', 'health_work')
+ts_correlation('mental', 'mental_health') # one
+ts_correlation('death', 'death') #two
+ts_correlation('travel', 'travelling') #one
+ts_correlation('future', 'future')
+
+#compare SOW graph
+pearson_correlation <- function(machine_var, human_var) {
+    machine <- df.long[df.long$varname == machine_var,]
+    kpt <- kpss.test(machine$value)
+    
+    machine <- machine[machine$month < '2020-11-1', ]
+    
+    human <- all_data[all_data$varname == human_var,]
+    human <- human[order(human$month),]
+    
+    pearson <- cor.test(as.numeric(machine$value), as.numeric(human$doc_per))
+    
+    return (pearson)
+}
+
+m <- pearson_correlation('infected', 'health_infected')
+
+
+anno_pre %>% dplyr::group_by(month=floor_date(date, "week")) %>%
+  dplyr::summarize(value=mean(prediction_anxiety)) -> grouped_anx_pre1
+
+annotation %>% dplyr::group_by(month=floor_date(date, "week")) %>%
+  dplyr::summarize(value=mean(anxiety)) -> grouped_anx
+
+grouped_anx_pre <- grouped_anx_pre1[grouped_anx_pre1$month < '2020-11-1', ]
+
+# check stationary
+kpss.test(grouped_anx_pre$value) #stationary
+kpss.test(grouped_anx$value)#stationary
+
+#detrend
+grouped_anx_pre$value_d <- detrend(grouped_anx_pre$value, tt = 'linear', bp = c())
+grouped_anx$value_d <- detrend(grouped_anx$value, tt = 'linear', bp = c())
+
+# check correlation
+ts_cor <- ccf(as.numeric(grouped_anx_pre$value_d), as.numeric(grouped_anx$value_d), type="correlation")
+
+grouped_anx_pre1$label <- "machine"
+grouped_anx$label <- 'human'
+grouped_anx$value_d <- NULL
+lang_intensity <- rbind(grouped_anx_pre1, grouped_anx)
+
+ggplot(lang_intensity, aes(month)) + 
+  geom_line(aes(y = value, colour = label), size= 1) +
+   scale_color_brewer(palette="Set1")+ 
+  scale_x_date(date_labels="%b %Y",date_breaks  ="1 month") + 
+  xlab("") +
+  theme(text = element_text(size=20)) + theme(legend.position="bottom", legend.box = "horizontal") +
+  theme_bw() +
+   theme(axis.text.x = element_text(angle = 60, vjust = 0.5), axis.title.x = element_blank())
+
+
+
+```
+
+
+```{r plots}
+path = '/Users/lucia/hawksworth/pandemic_anxiety/data/'
+setwd(path)
+
+covid_case <- read.csv('daily_tests.csv')
+
+US<- covid_case[covid_case$Entity =='United States',]
+colnames(US) <- c("Entity", "code", "day", "tests", "tests_perform", "cases","agg")
+
+US$date <- as.Date(US$day, format = "%Y-%m-%d")
+US %>% dplyr::group_by(month=floor_date(date, "week")) %>%
+  dplyr::summarize(cases_count=mean(cases))-> cases_month
+
+cases_month <- cases_month[cases_month$month > '2020-02-28' & cases_month$month < '2021-4-25', ]
+
+#language intensity
+anno_pre %>% dplyr::group_by(month=floor_date(date, "month")) %>%
+  dplyr::summarize(value=mean(prediction_anxiety)) -> grouped_anx_pre_month
+
+
+cases_month$cases <- 'cases'
+colnames(cases_month) <- c('month', 'amount', 'label')
+
+
+# check stationary
+kpss.test(as.numeric(cases_month$amount)) #stationary with drift and trend   p<0.05
+
+#anxiety level
+machine_anxiety <- anxiety_level[anxiety_level$label == 'machine',]
+
+human_anxiety <- anxiety_level[anxiety_level$label == 'human',]
+#detrend
+#cases_month$amount<- detrend(cases_month$amount, tt = 'linear', bp = c())
+#machine_anxiety$amount <- detrend(machine_anxiety$amount, tt = 'linear', bp = c())
+
+anxiety_level_all <- merge(machine_anxiety, cases_month, by = 'month', all.x = TRUE)
+anxiety_level_all <- merge(anxiety_level_all, human_anxiety, by = 'month', all.x = TRUE)
+
+# check correlation
+ts_cor <- ccf(as.numeric(cases_month$amount), as.numeric(machine_anxiety$amount), type="correlation")
+
+#anxiety_level_all <- rbind(machine_anxiety, cases_month)
+
+
+
+coeff <- 100000
+ggplot(anxiety_level_all, aes(x=month)) +
+  
+  geom_line(aes(y=amount.x), size=1, color="#009FB7") + 
+  geom_line(aes(y=amount), size=1, color="#F6AE2D") + 
+  geom_line(aes(y=amount.y/coeff), size=1, color="#FE4A49", linetype = "dashed") +
+  scale_x_date(date_labels="%b %Y",date_breaks  ="1 month") + 
+  
+  
+  scale_y_continuous(
+    
+    # Features of the first axis
+    name = "Anxiety Index",
+    
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(~. *coeff, name="COVID cases")
+  )+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, vjust = 0.5), axis.title.x = element_blank())
+
+
+```
+
+
+```{r plots}
+
+
+US %>% dplyr::group_by(month=floor_date(date, "month")) %>%
+  dplyr::summarize(cases_count=mean(cases))-> cases_month2
+sow_all <- merge(grouped_var, cases_month2, all.x = TRUE)
+colnames(sow_all) <- c("month", "career", "restrict", "health", "guideline","work","mental","death","travel","future", "cases_count")
+
+coeff <- 300000
+ggplot(sow_all, aes(x=month)) +
+  
+  geom_line(aes(y=career), size=1, color="#4DAF4A") + 
+  geom_line(aes(y=restrict), size=1, color="#F781BF") + 
+  geom_line(aes(y=health), size=1, color="#FF7F00") + 
+  geom_line(aes(y=guideline), size=1, color="#E41A1C") + 
+  geom_line(aes(y=work), size=1, color="#FFD700") + 
+  geom_line(aes(y=mental), size=1, color="#A65628") + 
+  geom_line(aes(y=death), size=1, color="#377EB8") + 
+  geom_line(aes(y=travel), size=1, color="#696969") +
+  geom_line(aes(y=future), size=1, color="#984EA3") +
+  geom_line(aes(y=cases_count/coeff), size=2, color="blue", linetype = "dashed") +
+  scale_x_date(date_labels="%b %Y",date_breaks  ="1 month") + 
+  
+  
+  scale_y_continuous(
+    
+    # Features of the first axis
+    name = "SOA",
+    
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(~. *coeff, name="COVID cases")
+  )+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, vjust = 0.5), axis.title.x = element_blank())
+
+#green #4DAF4A,  "#A65628"brown, "#377EB8" blue, "#984EA3" purple, "#FF7F00 orange", "#FFFF33 yellow", "#E41A1C red", ,"#F781BF", "#F786BF"
+```
+
+```{r plots}
+annotation %>% dplyr::group_by(month=floor_date(date, "month")) %>%
+  dplyr::summarize(career=mean(financial_career), restrict=mean(quar_social), health=mean(health_infected), guideline=mean(break_guideline), work=mean(health_work), mental=mean(mental_health), death=mean(death), travel=mean(travelling),future=mean(future)) -> grouped_month_anno
+
+#df.long.month.anno <- gather(grouped_month_anno, varname, value, -month)
+
+ggplot(df.long.month.anno , aes(month)) + 
+  geom_line(aes(y = value, colour = varname), size= 1) +
+   scale_x_date(date_labels="%b %Y",date_breaks  ="1 month") + 
+  # scale_color_brewer(palette="Set1")+ 
+  scale_color_manual(values=c("#4DAF4A", "#F786BF", "#FF7F00", "#E41A1C", "#FFD700", "#A65628","#377EB8", "#696969", "#984EA3")) + 
+  theme_bw() +
+  #theme(text = element_text(size=20)) + theme(legend.position="bottom", legend.box = "horizontal")+
+ theme(axis.text.x = element_text(angle = 60, vjust = 0.5), axis.title.x = element_blank())
+
+ggplot(grouped_month_anno, aes(x=month)) +
+  
+  geom_line(aes(y=career), size=1, color="#4DAF4A") + 
+  geom_line(aes(y=restrict), size=1, color="#F781BF") + 
+  geom_line(aes(y=health), size=1, color="#FF7F00") + 
+  geom_line(aes(y=guideline), size=1, color="#E41A1C") + 
+  geom_line(aes(y=work), size=1, color="#FFD700") + 
+  geom_line(aes(y=mental), size=1, color="#A65628") + 
+  geom_line(aes(y=death), size=1, color="#377EB8") + 
+  geom_line(aes(y=travel), size=1, color="#696969") +
+  geom_line(aes(y=future), size=1, color="#984EA3") +
+  scale_x_date(date_labels="%b %Y",date_breaks  ="1 month") + 
+  
+  
+  scale_y_continuous(
+    
+    # Features of the first axis
+    name = "SOA",
+    
+    # Add a second axis and specify its features
+  
+  )+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 60, vjust = 0.5), axis.title.x = element_blank())
+   
+
+
+```

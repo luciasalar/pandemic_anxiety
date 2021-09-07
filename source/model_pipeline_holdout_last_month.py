@@ -21,6 +21,7 @@ from lda_topic import *
 from sklearn import svm
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import GridSearchCV
+
 from sklearn.dummy import DummyClassifier
 
 # the classifiers
@@ -68,6 +69,7 @@ def load_experiment(path_to_experiment):
 class Read_raw_data:
     def __init__(self):
         self.path = '/disk/data/share/s1690903/pandemic_anxiety/data/anno_test/'
+
 
     def read_all_files(self) -> pd.DataFrame:
         """ Read all the annotation files. Get data for liwc """
@@ -194,7 +196,7 @@ class PrepareData:
     def optimize_lda(self, topic_num):
         """Check the optimized lda scores """
 
-        pt = ProcessText('/anno_test/combined_text_test.csv')
+        pt = ProcessText('/anno_test/combined_text_test.csv') # this is whole dataset
         cleaned_text = pt.simple_preprocess()
         entities = pt.extract_entities(cleaned_text)
         
@@ -203,7 +205,7 @@ class PrepareData:
 
 
     def merge_features(self)-> pd.DataFrame:
-        """Merge features with labels """
+        """Here we generate all the features of the whole dataset, merge features with annotated labels """
         
         # get liwc
         liwc = self.get_liwc()
@@ -249,8 +251,8 @@ class PrepareData:
         all_fea = all_fea.merge(lda, on='post_id')
 
         # merge with annotation labels
-        all_anno = pd.read_csv(self.path + 'all_data_text.csv') # annotated data
-        all_anno = all_anno[['post_id', 'anxiety', 'financial_career', 'quar_social', 'health_infected', 'break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future']]
+        all_anno = pd.read_csv(self.path + 'all_data_text.csv')# annotated data
+        all_anno = all_anno[['post_id', 'anxiety', 'financial_career', 'quar_social', 'health_infected', 'break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future', 'time']]
         
         ## merge annotated data with all data
         all_files_pd = pd.merge(all_fea, all_anno, on='post_id', how='outer')
@@ -265,26 +267,56 @@ class PrepareData:
         
         return all_files_pd
 
+    def select_time(self, data, start_date, end_date):
+        """select the data according to time"""
+
+        data['time_delta'] = pd.to_datetime(data['time'], format='%m/%d/%Y/%H:%M:%S').dt.date
+        startdate = pd.to_datetime(start_date).date()
+        enddate = pd.to_datetime(end_date).date()
+        data2 = data.loc[data['time_delta'].between(startdate, enddate, inclusive=False)]
+        # remove the time delta
+        data2 = data2.drop(columns=['time_delta'])
+
+        return data2
+
 
     def pre_train(self)-> pd.DataFrame:
         """Merge data, get X, y and recode y."""
 
         all_data = self.merge_features()
+        # here we drop data without annotation to create train test set
         all_data2 = all_data.dropna(subset=['anxiety'])
+
+        # here we create the prediction set (without annotation)
         prediction_sample = all_data.loc[all_data['anxiety'].isna()]
         prediction_sample = prediction_sample.drop(columns=[self.labelcol])
 
-
+        # for the training set, we drop the label column, y label assign time
         X = all_data2.drop(columns=[self.labelcol])
-        y = all_data2[[self.labelcol]]
+        y = all_data2[[self.labelcol, 'time']]
         return X, y, prediction_sample
 
     def get_train_test_split(self) -> pd.DataFrame:
-        '''split 10% holdout set, then split train test with the rest 90%, stratify splitting'''
+        '''use last month as test set'''
 
         X, y, prediction_sample = self.pre_train()
+  
+        X_train = self.select_time(X, '2/1/2020', '9/30/2020')
+        X_test = self.select_time(X, '10/1/2020', '10/30/2020')
+
+        y_train = self.select_time(y, '2/1/2020', '9/30/2020')
+        y_test = self.select_time(y, '10/1/2020', '10/30/2020')
+        
+        # # remove time from train, test
+        y_train = y_train.drop(columns=['time'])
+        y_test = y_test.drop(columns=['time'])
+        
+        # convert y to categories
+        y_train = y_train[self.labelcol]
+        y_test = y_test[self.labelcol]
+
         # get 10% holdout set for testing
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state = 300, stratify = y)
+        #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state = 300, stratify = y)
 
         return X_train, X_test, y_train, y_test, prediction_sample
 
@@ -427,8 +459,7 @@ class TrainingClassifiers:
         result.to_csv(self.path + 'results/test_result_{}.csv'.format(self.label))
 
         #store the prediction for new sample
-        machine_anno = prediction_sample[['post_id', 'prediction_{}'.format(self.label)]]
-        machine_anno.to_csv(self.path + 'results/prediction_sample_{}.csv'.format(self.label))
+        prediction_sample.to_csv(self.path + 'results/prediction_sample_{}.csv'.format(self.label))
     
         return report, grid_search, pipeline
    
@@ -443,7 +474,7 @@ def loop_the_grid(label): #label column for prediction
     f = open(path + 'results/classifier/test_result.csv', 'a')
     writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
     if not file_exists:
-        writer_top.writerow(['best_scores'] + ['best_parameters'] + ['report'] + ['time'] + ['model'] +['feature_set'] +['tfidf_words'] + 'pre_label')
+        writer_top.writerow(['best_scores'] + ['best_parameters'] + ['report'] + ['time'] + ['model'] +['feature_set'] +['tfidf_words'] + ['pre_label'])
         f.close()
     
     read = Read_raw_data()
@@ -480,12 +511,13 @@ def loop_the_grid(label): #label column for prediction
                 # store results
                 report, grid_search, pipeline = training.test_model(classifier)
 
-                result_row = [[grid_search.best_score_, grid_search.best_params_, report, str(datetime.datetime.now()), classifier, features_list, tfidf_words, label]]
+                result_row = [[grid_search.best_score_, grid_search.best_params_, report, str(datetime.datetime.now()), classifier, features_list, tfidf_words, label, 'last_month']]
 
                 writer_top.writerows(result_row)
 
                 f.close()
                 gc.collect()
+
 
 def baseline(label): #label column for prediction
     '''loop parameters in the environment file '''
@@ -538,7 +570,7 @@ def baseline(label): #label column for prediction
 # run lda                   
 #read = Read_raw_data()
 #all_file_df = read.read_all_files()
-#p = PrepareData('COVID19_support.csv', 'anxiety')
+p = PrepareData('COVID19_support.csv', 'anxiety')
 # p.save_combined_text()
 
 # for i in [15, 20, 25, 30]:
@@ -548,23 +580,34 @@ def baseline(label): #label column for prediction
 #X_train, X_test, y_train, y_test, prediction_sample = p.get_train_test_split()
 
 
-# X_train = X_train.drop(columns=['post_id'])
-#X_test = X_test.drop(columns=['post_id'])
 var_list = ['anxiety', 'financial_career', 'quar_social', 'health_infected', 'break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future']
 
-for var in var_list:
-    loop_the_grid(var)# input which one you want to predict
 
-# loop_the_grid('death')
+# for var in var_list:
+#     loop_the_grid(var)# input which one you want to predict
+
+for var in var_list:
+    baseline(var)#
 
 # dummy classifier
-# for var in var_list:
-#     baseline(var)#
+# def dummy_classifier(MoodslideWindow):
+#     '''loop parameters in the environment file '''
 
+#     path = '/disk/data/share/s1690903/predicting_depression_symptoms/data/'
+#     experiment = load_experiment(path + '../experiment/experiment.yaml')
 
+#     # prepare environment 
+#     prepare = PrepareData(timewindow=timewindow, step = step)
+                    
+#     #   # split data
+#     X_train, X_test, y_train, y_test = prepare.get_train_test_split()
+#     print(X_train.shape, X_test.shape)
 
-
-
-
+#     dummy_clf = DummyClassifier(strategy="stratified")
+#     dummy_clf.fit(X_test, y_test)
+#     y_pred = dummy_clf.predict(X_test)
+#     report = classification_report(y_test, y_pred, output_dict=True)
+#     print(report)
+#     return report 
 
 
