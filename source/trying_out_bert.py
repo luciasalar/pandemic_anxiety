@@ -3,7 +3,6 @@ from datasets import load_dataset, load_metric
 import random
 import pandas as pd
 from transformers import AutoTokenizer
-from transformers import AutoTokenizer
 from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer
 import numpy as np
 from collections import defaultdict
@@ -11,7 +10,7 @@ import csv
 import gc
 import os
 import re
-
+from transformers import RobertaTokenizer, RobertaModel
 
 
 
@@ -22,16 +21,22 @@ class Read_raw_data:
     def __init__(self, Anno_filename, model_checkpoint, label):
         self.path = '/disk/data/share/s1690903/pandemic_anxiety/data/anno_test/'
         self.file = pd.read_csv(self.path + Anno_filename)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_checkpoint, use_fast=True)
+        #self.tokenizer = AutoTokenizer.from_pretrained(model_checkpoint, use_fast=True)
         self.label = label
+        self.model_checkpoint = model_checkpoint
 
-    # def preprocessing(self):
-    #     cleaned_text = pt.simple_preprocess()
+    def tokenizer_model(self):
+        """Tokenize text """
+        tokens = AutoTokenizer.from_pretrained(self.model_checkpoint, use_fast=True)
+        #tokens = RobertaTokenizer.from_pretrained('roberta-base')
+
+        return tokens
 
 
     def truncate_data(self):
         """Truncate and store datasets """
         file = self.file
+        #do we need to clean the data?
         #file.loc[:, 'cleaned_text'] = file['text'].apply(lambda x: str.lower(x))
         #file.loc[:, 'cleaned_text'] = file['cleaned_text'].apply(lambda x: " ".join(re.findall('[\w]+',x)))
 
@@ -51,8 +56,12 @@ class Read_raw_data:
 
     def preprocess_function(self, examples):
         # tokenize sentences
+        tokenizer = self.tokenizer_model()
 
-        return self.tokenizer(examples['sentence'], truncation=True)
+        tokens = tokenizer(examples['sentence'], truncation=True)
+
+
+        return tokens
 
 
     def encode_dataset(self):
@@ -70,10 +79,19 @@ class Training_classifier:
     def __init__(self, model_checkpoint, encoded_dataset, batch_size):
         self.model_checkpoint = model_checkpoint
         self.encoded_dataset = encoded_dataset
-        self.tokenizer = AutoTokenizer.from_pretrained(model_checkpoint, use_fast=True)
+        #self.tokenizer = AutoTokenizer.from_pretrained(model_checkpoint, use_fast=True)
         self.batch_size = batch_size
         self.metric = load_metric('glue', 'mrpc')
         self.result_path = '/disk/data/share/s1690903/pandemic_anxiety/'
+
+    def tokenizer_model(self):
+        """Tokenize text """
+        #use Bert tokenizer
+        tokens = AutoTokenizer.from_pretrained(self.model_checkpoint, use_fast=True)
+        # use Roberta Tokenizer
+        #tokens = RobertaTokenizer.from_pretrained('roberta-base')
+
+        return tokens
 
     def compute_metrics(self, eval_pred):
         predictions, labels = eval_pred
@@ -90,8 +108,10 @@ class Training_classifier:
 
 
     def define_trainer(self):
+        """Define a trainer and do parameter search """
 
-        #model = AutoModelForSequenceClassification.from_pretrained(self.model_checkpoint, num_labels=2)
+        #run tokenizer
+        tokenizer = self.tokenizer_model()
 
         metric_name = "accuracy"
 
@@ -118,7 +138,7 @@ class Training_classifier:
         # find some good hyperparameter on a portion of the training dataset 
         train_dataset=self.encoded_dataset["train"].shard(index=1, num_shards=10), 
         eval_dataset=self.encoded_dataset["validation"],
-        tokenizer=self.tokenizer,
+        tokenizer=tokenizer,
         compute_metrics=self.compute_metrics
         )
 
@@ -132,29 +152,29 @@ class Training_classifier:
 
         evaluation = trainer.evaluate()
 
+
         return best_run, trainer, evaluation
 
 
-    def write_result(self, best_run, evalution):
+    def write_result(self, best_run, evalution, label_name):
         """ write result to file"""
 
-        file_exists = os.path.isfile(self.result_path + 'results/bert_test_result2.csv')
-        f = open(self.result_path + 'results/bert_test_result2.csv', 'a')
+        file_exists = os.path.isfile(self.result_path + 'results/bert_test_result.csv')
+        f = open(self.result_path + 'results/bert_test_result.csv', 'a')
         writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         if not file_exists:
-            writer_top.writerow(['best_run']+['evaluation'])
+            writer_top.writerow(['best_run']+['eval_loss']+['eval_accuracy']+['eval_f1']+['eval_runtime']+['epoch'] + ['label'] + ['batch_size'] + ['pretrained_model'])
 
-            result_row = [[best_run + evaluation]]
+            result_row = [[best_run, evaluation['eval_loss'], evaluation['eval_accuracy'], evaluation['eval_f1'],evaluation['eval_runtime'], evaluation['epoch'], label_name, self.batch_size], self.model_checkpoint]
 
             writer_top.writerows(result_row)
-
             f.close()
 
         else:
-            f = open(self.result_path + 'results/bert_test_result2.csv', 'a')
+            f = open(self.result_path + 'results/bert_test_result.csv', 'a')
             writer_top = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
 
-            result_row = [[best_run + evaluation]]
+            result_row = [[best_run, evaluation['eval_loss'], evaluation['eval_accuracy'], evaluation['eval_f1'],evaluation['eval_runtime'], evaluation['epoch'], label_name, self.batch_size, self.model_checkpoint]]
 
             writer_top.writerows(result_row)
 
@@ -162,12 +182,23 @@ class Training_classifier:
 
             gc.collect()
 
-model_checkpoint = "distilroberta-base"
-batch_size = 8
+model_checkpoint = "distilbert-base-uncased"
+batch_size = 4
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-read = Read_raw_data('all_data_text.csv', model_checkpoint=model_checkpoint, label='health_infected')
+# read = Read_raw_data('all_data_text.csv', model_checkpoint=model_checkpoint, label='health_infected')
 
-labels = ['financial_career', 'quar_social', 'health_infected','break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future']
+# encoded_dataset = read.encode_dataset()
+
+# t = Training_classifier(model_checkpoint=model_checkpoint, encoded_dataset=encoded_dataset, batch_size=batch_size)
+
+# best_run, trainer, evaluation = t.define_trainer()
+# t.write_result(best_run, evaluation)
+
+
+#labels = ['health_infected', 'financial_career', 'quar_social', 'break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future']
+
+labels = ['quar_social', 'break_guideline', 'health_work', 'mental_health', 'death', 'travelling', 'future']
 
 for l in labels:
     read = Read_raw_data('all_data_text.csv', model_checkpoint=model_checkpoint, label=l)
@@ -176,13 +207,15 @@ for l in labels:
     t = Training_classifier(model_checkpoint=model_checkpoint, encoded_dataset=encoded_dataset, batch_size=batch_size)
 
     best_run, trainer, evaluation = t.define_trainer()
-    t.write_result(best_run, evaluation)
+    gc.collect()
+
+    t.write_result(best_run, evaluation, read.label)
 
 
 
 
 
-# read.truncate_data()
+
 # dataset1 = read.create_dataset()
 # read.preprocess_function(dataset1['train'][:5])
 # encoded_dataset = dataset1.map(read.preprocess_function, batched=True)
